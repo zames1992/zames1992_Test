@@ -25,7 +25,8 @@
   emergency hide (tray + Ctrl+Alt+H), single instance (second launch summons Hoodie), start with Windows,
   reduced motion, sounds toggle, first-run hello card.
 - Persistence: settings, territory, inventory, notes, reminders, timers — atomic writes + .bak + schemaVersion.
-- Quality: 38 unit/simulation tests; automated end-to-end QA scenario (`--qa`) on the packaged exe: 16/16 PASS under Wine.
+- Quality: 38 unit/simulation tests; automated end-to-end QA scenario (`--qa`) on the packaged exe: 16/16 PASS under Wine
+  and 16/16 PASS on a real Windows CI runner (plus single-instance check).
 - Release: `build-release.bat` (Windows) / `build-release.sh` (cross-build) → `publish/win-x64/HoodieCompanion.exe`
   (self-contained single file) + `publish/HoodieCompanion-win-x64.zip`; Windows CI workflow.
 
@@ -40,7 +41,7 @@
 
 ## NEXT
 
-- Review the Windows CI QA report and artifacts; tune based on real Windows performance numbers.
+- Measure idle CPU/RAM on a desktop PC with a GPU (CI VM is GPU-less).
 - Windows as platforms (stand on window title bars), richer obstruction detection.
 - Elbow joints for nicer arm poses.
 

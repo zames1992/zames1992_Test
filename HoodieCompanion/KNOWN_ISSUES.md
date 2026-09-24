@@ -8,7 +8,9 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   and exercised end-to-end under Wine (automated QA scenario: 16/16 checks passed, see
   `docs/qa/qa-report-wine.txt`), plus 38 unit/simulation tests of the platform-independent core.
   The GitHub Actions workflow `.github/workflows/hoodie-companion.yml` runs the same clean build, the unit tests,
-  the automated QA scenario and a single-instance check on a real `windows-latest` machine.
+  the automated QA scenario and a single-instance check on a real `windows-latest` machine — first run on
+  Windows 10.0.26100: **16/16 QA checks PASS, single instance OK**, simulation 0.085 ms/frame, calm CPU 5.5 % of all
+  cores and 307 MB peak working set on the GPU-less CI VM (during the QA run, which also renders snapshots).
 * Not verified on real hardware: per-monitor **DPI transitions between monitors with different scaling**, real
   **multi-monitor** setups (the logic is covered by simulation tests with side-by-side, stacked and negative-coordinate
   layouts), tray icon behaviour on Windows 11, drag-and-drop from Explorer/browsers onto the character,
