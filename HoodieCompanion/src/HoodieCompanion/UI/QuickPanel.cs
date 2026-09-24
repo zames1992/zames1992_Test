@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using HoodieCompanion.Companion.Animation;
 using HoodieCompanion.Companion.Behavior;
 using HoodieCompanion.Features.Backpack;
+using HoodieCompanion.Features.Notes;
 using HoodieCompanion.Features.Reminders;
 using HoodieCompanion.Features.SystemMonitor;
 using HoodieCompanion.Features.Timers;
@@ -85,7 +86,8 @@ public sealed class QuickPanel : Window
         {
             if (e.Key == Key.Escape)
             {
-                if (_page != PanelPage.Home) Show(PanelPage.Home);
+                if (_page == PanelPage.Notes && _noteEdit is not null) LeaveEditor();
+                else if (_page != PanelPage.Home) Show(PanelPage.Home);
                 else Close(animated: true);
                 e.Handled = true;
             }
@@ -106,7 +108,7 @@ public sealed class QuickPanel : Window
         _tick.Tick += (_, _) => RefreshLive();
 
         _host.Inventory.Changed += () => { if (IsVisible && _page == PanelPage.Backpack) RebuildBackpackGrid(); };
-        _host.Notes.Changed += () => { if (IsVisible && _page == PanelPage.Notes) RefreshLive(); };
+        _host.Notes.Changed += () => { if (IsVisible && _page == PanelPage.Notes && _noteEdit is null) _noteBoardFill?.Invoke(); };
         _host.Reminders.Changed += () => { if (IsVisible && _page == PanelPage.Reminder) RefreshLive(); };
         _host.Timers.Changed += () => { if (IsVisible) RefreshLive(); };
         _host.SystemStatusUpdated += _ => { if (IsVisible && _page == PanelPage.PcStatus) RefreshLive(); };
@@ -119,6 +121,7 @@ public sealed class QuickPanel : Window
 
     private static void OnDragOver(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(ItemDragFormat)) return;
         e.Effects = DropHandler.CanAccept(e.Data) ? DragDropEffects.Copy | DragDropEffects.Link : DragDropEffects.None;
         e.Handled = true;
     }
@@ -144,6 +147,7 @@ public sealed class QuickPanel : Window
 
     public void Show(PanelPage page)
     {
+        if (page != PanelPage.Notes && _noteEdit is not null) LeaveEditor(showBoard: false);
         _page = page;
         Rebuild();
         var fade = new DoubleAnimation(0.4, 1, TimeSpan.FromMilliseconds(140));
@@ -164,6 +168,7 @@ public sealed class QuickPanel : Window
         if (!IsVisible || _closing) return;
         _closing = true;
         _tick.Stop();
+        if (_noteEdit is not null) LeaveEditor(showBoard: false);
         _host.Pet.SetPanelActivity(PanelActivity.None);
         if (!animated || _host.Settings.ReducedMotion)
         {
@@ -249,7 +254,7 @@ public sealed class QuickPanel : Window
         foreach (var (host, build) in _live) host.Content = build();
     }
 
-    private UIElement Frame(string title, UIElement content, bool back = true, UIElement? footer = null)
+    private UIElement Frame(string title, UIElement content, bool back = true, UIElement? footer = null, Action? onBack = null)
     {
         var header = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 12) };
         var close = Ui.Button(Ui.Icon(Ui.Icons.Close, 14, "TextDim"), () => Close(true), "GhostButton", T("Close (Esc)"));
@@ -257,7 +262,7 @@ public sealed class QuickPanel : Window
         header.Children.Add(close);
         if (back)
         {
-            var b = Ui.Button(Ui.Icon(Ui.Icons.Back, 14, "TextDim"), () => Show(PanelPage.Home), "GhostButton", T("Back"));
+            var b = Ui.Button(Ui.Icon(Ui.Icons.Back, 14, "TextDim"), onBack ?? (() => Show(PanelPage.Home)), "GhostButton", T("Back"));
             b.Margin = new Thickness(-6, 0, 4, 0);
             DockPanel.SetDock(b, Dock.Left);
             header.Children.Add(b);
@@ -402,12 +407,18 @@ public sealed class QuickPanel : Window
     private string? _renaming;
     private bool _addMenu;
     private bool _linkInput;
+    private bool _appSearch;
+    private const string ItemDragFormat = "HoodieBackpackItem";
+    private Point _slotPress;
+    private string? _slotPressId;
+    private bool _slotDragged;
 
     private UIElement BackpackPage()
     {
         _renaming = null;
         _addMenu = false;
         _linkInput = false;
+        _appSearch = false;
         var search = Ui.Input(T("Search backpack"));
         search.Text = _search;
         search.TextChanged += (_, _) =>
@@ -446,7 +457,61 @@ public sealed class QuickPanel : Window
             return;
         }
         var sp = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
-        sp.Children.Add(Ui.Grid(3, Cmd(T("File…"), AddFiles), Cmd(T("Folder…"), AddFolder), Cmd(T("Link…"), () => { _linkInput = true; RebuildAddRow(); })));
+        sp.Children.Add(Ui.Grid(4, Cmd(T("File…"), AddFiles), Cmd(T("Folder…"), AddFolder),
+            Cmd(T("App…"), () => { _appSearch = true; _linkInput = false; RebuildAddRow(); }),
+            Cmd(T("Link…"), () => { _linkInput = true; _appSearch = false; RebuildAddRow(); })));
+        if (_appSearch)
+        {
+            var q = Ui.Input(T("Find an app, e.g. Calculator"));
+            var results = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+            void Fill()
+            {
+                results.Children.Clear();
+                if (!_host.Apps.IsLoaded)
+                {
+                    results.Children.Add(Ui.Text(T("Looking through your apps…"), 12, dim: true));
+                    return;
+                }
+                var found = _host.Apps.Search(q.Text, 8);
+                if (found.Count == 0) results.Children.Add(Ui.Text(T("No matches."), 12, dim: true));
+                foreach (var (name, target) in found)
+                {
+                    var icon = _host.Icons.Preview(target);
+                    FrameworkElement ic = icon is not null ? new Image { Source = icon, Width = 20, Height = 20 } : Ui.Icon(Ui.Icons.Plus, 14, "TextDim");
+                    ic.Margin = new Thickness(0, 0, 8, 0);
+                    var row = new StackPanel { Orientation = Orientation.Horizontal };
+                    row.Children.Add(ic);
+                    row.Children.Add(Ui.Text(name, 12.5));
+                    var b = new Button { Content = row, Style = Ui.Style("GhostButton"), HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(6, 4, 6, 4), ToolTip = T("Put it in the backpack") };
+                    var t = target;
+                    b.Click += (_, _) =>
+                    {
+                        _host.GiveItems(new[] { t });
+                        _appSearch = false;
+                        _addMenu = false;
+                        RebuildAddRow();
+                    };
+                    results.Children.Add(b);
+                }
+            }
+            q.TextChanged += (_, _) => Fill();
+            q.KeyDown += (_, e) =>
+            {
+                if (e.Key != Key.Enter) return;
+                var first = _host.Apps.Search(q.Text, 1);
+                if (first.Count == 0) return;
+                _host.GiveItems(new[] { first[0].Target });
+                _appSearch = false;
+                _addMenu = false;
+                RebuildAddRow();
+                e.Handled = true;
+            };
+            sp.Children.Add(Ui.WithPlaceholder(q));
+            sp.Children.Add(results);
+            Fill();
+            if (!_host.Apps.IsLoaded) _host.Apps.LoadAsync().ContinueWith(_ => Dispatcher.BeginInvoke(() => { if (_appSearch) Fill(); }));
+            Dispatcher.BeginInvoke(() => q.Focus(), DispatcherPriority.Input);
+        }
         if (_linkInput)
         {
             var link = Ui.Input("https://…", url => AddLink(url));
@@ -495,6 +560,7 @@ public sealed class QuickPanel : Window
         b.MouseEnter += (_, _) => b.BorderBrush = Ui.Brush("Accent");
         b.MouseLeave += (_, _) => b.BorderBrush = Ui.Brush("BorderBrush");
         b.MouseLeftButtonUp += (_, _) => AddFiles();
+        AcceptReorder(b, () => int.MaxValue);
         return b;
     }
 
@@ -503,10 +569,10 @@ public sealed class QuickPanel : Window
         var exists = _host.Inventory.Exists(item);
         var icon = _host.Icons.Get(item);
         FrameworkElement iconEl = icon is not null
-            ? new Image { Source = icon, Width = 32, Height = 32 }
+            ? new Image { Source = icon, Width = 40, Height = 40, Stretch = Stretch.Uniform }
             : Ui.Icon(item.Type switch { InventoryItemType.Folder => Ui.Icons.Folder, InventoryItemType.Url => Ui.Icons.Link, _ => Ui.Icons.Note }, 28, "TextDim");
         iconEl.HorizontalAlignment = HorizontalAlignment.Center;
-        iconEl.Margin = new Thickness(0, 10, 0, 4);
+        iconEl.Margin = new Thickness(0, 7, 0, 3);
         if (!exists) iconEl.Opacity = 0.4;
 
         var sp = new StackPanel();
@@ -556,10 +622,43 @@ public sealed class QuickPanel : Window
         if (item.IsPinned) slot.BorderBrush = Ui.Brush("Accent");
         slot.Click += (_, _) =>
         {
+            if (_slotDragged) { _slotDragged = false; return; }
             if (_renaming is null) _host.OpenItem(item);
         };
         slot.ContextMenu = SlotMenu(item);
+        // Drag a slot onto another one to arrange the backpack yourself.
+        slot.PreviewMouseLeftButtonDown += (_, e) => { _slotPress = e.GetPosition(this); _slotPressId = item.Id; _slotDragged = false; };
+        slot.PreviewMouseMove += (_, e) =>
+        {
+            if (_slotPressId != item.Id || e.LeftButton != MouseButtonState.Pressed || _renaming is not null) return;
+            var d = e.GetPosition(this) - _slotPress;
+            if (Math.Abs(d.X) < 6 && Math.Abs(d.Y) < 6) return;
+            _slotPressId = null;
+            _slotDragged = true;
+            slot.Opacity = 0.45;
+            try { DragDrop.DoDragDrop(slot, new DataObject(ItemDragFormat, item.Id), DragDropEffects.Move); }
+            finally { slot.Opacity = 1; }
+        };
+        AcceptReorder(slot, () => _host.Inventory.Ordered().ToList().FindIndex(i => i.Id == item.Id));
         return slot;
+    }
+
+    private void AcceptReorder(UIElement target, Func<int> index)
+    {
+        target.AllowDrop = true;
+        target.DragOver += (_, e) =>
+        {
+            if (!e.Data.GetDataPresent(ItemDragFormat)) return;
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        };
+        target.Drop += (_, e) =>
+        {
+            if (e.Data.GetData(ItemDragFormat) is not string id) return;
+            e.Handled = true;
+            var i = index();
+            _host.Inventory.Move(id, i == int.MaxValue ? _host.Inventory.Items.Count : i);
+        };
     }
 
     private ContextMenu SlotMenu(InventoryItem item)
@@ -574,7 +673,11 @@ public sealed class QuickPanel : Window
         Add(T("Open"), () => _host.OpenItem(item));
         Add(item.IsPinned ? T("Unpin") : T("Pin to the front"), () => _host.Inventory.TogglePin(item.Id));
         Add(T("Rename"), () => { _renaming = item.Id; RebuildBackpackGrid(); });
-        if (item.Type != InventoryItemType.Url) Add(T("Show in folder"), () => ShortcutService.ShowInFolder(item));
+        if (item.Type is not (InventoryItemType.Url or InventoryItemType.ShellItem)) Add(T("Show in folder"), () => ShortcutService.ShowInFolder(item));
+        var order = _host.Inventory.Ordered().ToList();
+        var idx = order.FindIndex(i => i.Id == item.Id);
+        if (idx > 0) Add(T("Move left"), () => _host.Inventory.Move(item.Id, idx - 1));
+        if (idx >= 0 && idx < order.Count - 1) Add(T("Move right"), () => _host.Inventory.Move(item.Id, idx + 1));
         menu.Items.Add(new Separator());
         Add(T("Remove from Backpack"), () => _host.RemoveItem(item));
         menu.Opened += (_, _) => SuppressAutoClose = true;
@@ -629,44 +732,322 @@ public sealed class QuickPanel : Window
 
     // ------------------------------------------------------------------ Notes
 
-    private UIElement NotesPage()
+    // Notes work like a small Sticky Notes board: colourful cards laid out like an inventory; a card opens
+    // an editor; notes can be pinned to the desktop. Hoodie writes while you type, thinks when you pause,
+    // finishes neatly when you keep a note and tears the page out when you throw one away.
+    private string? _noteEdit;          // note id, "new" for a draft, null for the board
+    private string _noteSearch = "";
+    private string _noteColor = NoteColors.Default;
+    private TextBox? _noteBox;
+    private TextBox? _noteLabel;
+
+    private UIElement NotesPage() => _noteEdit is null ? NotesBoard() : NoteEditor();
+
+    private UIElement NotesBoard()
     {
-        TextBox input = null!;
-        void Add(string text)
+        var search = Ui.Input(T("Search notes"));
+        search.Text = _noteSearch;
+        var add = Ui.Button(Ui.Row(Ui.Icon(Ui.Icons.Plus, 14, "AccentText"), Ui.Text(T("New note"), 12.5, weight: FontWeights.SemiBold), 4),
+            () => OpenNote("new"), "AccentButton", T("Write a new note"));
+        add.Padding = new Thickness(10, 5, 10, 5);
+        var board = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+        void Fill()
         {
-            if (string.IsNullOrWhiteSpace(text)) return;
-            _host.AddNote(text);
-            input.Text = "";
-            input.Focus();
-        }
-        input = Ui.Input(T("Remember this for me…"), Add);
-        var add = Ui.Button(T("Keep"), () => Add(input.Text), "AccentButton");
-        var list = Live(() =>
-        {
-            var sp = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-            var notes = _host.Notes.Ordered().ToList();
-            if (notes.Count == 0) sp.Children.Add(Ui.Text(T("Hoodie writes small things down for you: an idea, a number, a to-do."), 12.5, dim: true));
-            foreach (var n in notes)
+            board.Children.Clear();
+            var notes = _host.Notes.Search(_noteSearch).ToList();
+            foreach (var n in notes) board.Children.Add(NoteCard(n));
+            if (notes.Count == 0)
             {
-                var id = n.Id;
-                var tb = Ui.Text(n.Text, 13);
-                if (n.IsCompleted) { tb.TextDecorations = TextDecorations.Strikethrough; tb.Foreground = Ui.Brush("TextDim"); }
-                var cb = new CheckBox { IsChecked = n.IsCompleted, Content = tb };
-                cb.Click += (_, _) => _host.Notes.Toggle(id);
-                var del = Ui.Button(Ui.Icon(Ui.Icons.Trash, 14, "TextDim"), () => _host.Notes.Delete(id), "GhostButton", T("Forget"));
-                var row = Ui.Row(cb, del, 4);
-                ((FrameworkElement)row).Margin = new Thickness(0, 0, 0, 4);
-                sp.Children.Add(row);
+                var hint = Ui.Text(string.IsNullOrEmpty(_noteSearch)
+                    ? T("Hoodie writes small things down for you: an idea, a number, a to-do. Pin a note to keep it on the desktop.")
+                    : T("No matches."), 12.5, dim: true);
+                hint.Width = PanelWidth - 40;
+                board.Children.Add(hint);
             }
-            return sp;
-        });
+        }
+        search.TextChanged += (_, _) => { _noteSearch = search.Text; Fill(); };
+        _noteBoardFill = Fill;
+        Fill();
         var dock = new DockPanel();
-        var top = Ui.Row(Ui.WithPlaceholder(input), add);
+        var top = Ui.Row(Ui.WithPlaceholder(search), add);
         DockPanel.SetDock(top, Dock.Top);
         dock.Children.Add(top);
-        dock.Children.Add(Ui.Scroll(list));
-        Dispatcher.BeginInvoke(() => input.Focus(), DispatcherPriority.Input);
+        dock.Children.Add(Ui.Scroll(board));
         return Frame(T("Notes"), dock);
+    }
+
+    private Action? _noteBoardFill;
+
+    private UIElement NoteCard(Note n)
+    {
+        var (back, header, text) = NoteColors.Palette(n.Color);
+        var fg = Hex(text);
+        var body = new TextBlock
+        {
+            Text = n.Text,
+            FontSize = 12.5,
+            FontFamily = Ui.Font,
+            Foreground = fg,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(9, 6, 9, 4),
+            MaxHeight = 68,
+        };
+        if (n.IsCompleted) { body.TextDecorations = TextDecorations.Strikethrough; body.Opacity = 0.6; }
+        var foot = new DockPanel { Margin = new Thickness(9, 0, 7, 5), LastChildFill = false };
+        if (n.Label is { } label)
+        {
+            var chip = new Border { Background = Hex(header), CornerRadius = new CornerRadius(6), Padding = new Thickness(6, 1, 6, 1),
+                Child = new TextBlock { Text = label, FontSize = 10.5, Foreground = fg, FontFamily = Ui.Font } };
+            foot.Children.Add(chip);
+        }
+        if (n.IsPinned)
+        {
+            var pin = Ui.Icon(Ui.Icons.Pin, 12);
+            pin.Stroke = fg;
+            DockPanel.SetDock(pin, Dock.Right);
+            foot.Children.Add(pin);
+        }
+        var stack = new DockPanel();
+        var strip = new Border { Height = 7, Background = Hex(header), CornerRadius = new CornerRadius(6, 6, 0, 0) };
+        DockPanel.SetDock(strip, Dock.Top);
+        stack.Children.Add(strip);
+        DockPanel.SetDock(foot, Dock.Bottom);
+        stack.Children.Add(foot);
+        stack.Children.Add(body);
+        var card = new Border
+        {
+            Width = (PanelWidth - 40) / 2 - 6,
+            Height = 116,
+            Margin = new Thickness(0, 0, 8, 8),
+            CornerRadius = new CornerRadius(6),
+            Background = Hex(back),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)),
+            BorderThickness = new Thickness(1),
+            Child = stack,
+            Cursor = Cursors.Hand,
+            ToolTip = n.Text.Length > 300 ? n.Text[..300] + "…" : n.Text,
+        };
+        var id = n.Id;
+        card.MouseLeftButtonUp += (_, _) => OpenNote(id);
+        var menu = new ContextMenu();
+        void Item(string t, Action a)
+        {
+            var mi = new MenuItem { Header = t };
+            mi.Click += (_, _) => a();
+            menu.Items.Add(mi);
+        }
+        Item(T("Open"), () => OpenNote(id));
+        Item(n.IsPinned ? T("Unpin from the desktop") : T("Pin to the desktop"), () => _host.Notes.SetPinned(id, !n.IsPinned));
+        Item(n.IsCompleted ? T("Mark as not done") : T("Mark as done"), () => _host.Notes.Toggle(id));
+        var colors = new MenuItem { Header = T("Colour") };
+        foreach (var c in NoteColors.All)
+        {
+            var mi = new MenuItem { Header = ColorName(c), Icon = new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(6), Background = Hex(NoteColors.Palette(c).Back), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) } };
+            var cc = c;
+            mi.Click += (_, _) => _host.Notes.SetColor(id, cc);
+            colors.Items.Add(mi);
+        }
+        menu.Items.Add(colors);
+        menu.Items.Add(new Separator());
+        Item(T("Throw away"), () => { _host.Notes.Delete(id); _host.Pet.NoteFinished(saved: false); });
+        menu.Opened += (_, _) => SuppressAutoClose = true;
+        menu.Closed += (_, _) => SuppressAutoClose = false;
+        card.ContextMenu = menu;
+        return card;
+    }
+
+    /// <summary>QA helper: opens the editor for a new note with some text.</summary>
+    internal void QaNewNote(string text, string color)
+    {
+        OpenNote("new");
+        _noteColor = color;
+        Show(PanelPage.Notes);
+        if (_noteBox is not null) _noteBox.Text = text;
+    }
+
+    /// <summary>QA helper: presses Keep in the editor. Returns the saved note id.</summary>
+    internal string? QaKeepNote()
+    {
+        var n = SaveNote();
+        _host.Pet.NoteFinished(saved: n is not null);
+        CloseEditor();
+        return n?.Id;
+    }
+
+    private static string ColorName(string c) => c switch
+    {
+        "green" => T("Green"),
+        "pink" => T("Pink"),
+        "purple" => T("Purple"),
+        "blue" => T("Blue"),
+        "gray" => T("Gray"),
+        "charcoal" => T("Charcoal"),
+        _ => T("Yellow"),
+    };
+
+    private static SolidColorBrush Hex(string hex)
+    {
+        var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        b.Freeze();
+        return b;
+    }
+
+    private void OpenNote(string id)
+    {
+        _noteEdit = id;
+        _noteColor = id == "new" ? NoteColors.Default : _host.Notes.Find(id)?.Color ?? NoteColors.Default;
+        Show(PanelPage.Notes);
+    }
+
+    private UIElement NoteEditor()
+    {
+        var existing = _noteEdit is { } eid && eid != "new" ? _host.Notes.Find(eid) : null;
+        if (_noteEdit != "new" && existing is null) _noteEdit = "new";
+        var (back, _, text) = NoteColors.Palette(_noteColor);
+
+        var box = new TextBox
+        {
+            Text = existing?.Text ?? "",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            FontSize = 14,
+            Padding = new Thickness(10),
+            Background = Hex(back),
+            Foreground = Hex(text),
+            CaretBrush = Hex(text),
+            BorderThickness = new Thickness(1),
+            VerticalContentAlignment = VerticalAlignment.Top,
+        };
+        box.TextChanged += (_, _) => _host.Pet.NoteTyping();
+        _noteBox = box;
+
+        var colors = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var c in NoteColors.All)
+        {
+            var cc = c;
+            var dot = new Border
+            {
+                Width = 20, Height = 20, Margin = new Thickness(0, 0, 6, 0), CornerRadius = new CornerRadius(10),
+                Background = Hex(NoteColors.Palette(c).Back),
+                BorderBrush = c == _noteColor ? Ui.Brush("Accent") : new SolidColorBrush(Color.FromArgb(0x60, 0x80, 0x80, 0x80)),
+                BorderThickness = new Thickness(c == _noteColor ? 2.5 : 1),
+                Cursor = Cursors.Hand,
+                ToolTip = ColorName(c),
+            };
+            dot.MouseLeftButtonUp += (_, _) =>
+            {
+                _noteColor = cc;
+                var (b2, _, t2) = NoteColors.Palette(cc);
+                box.Background = Hex(b2);
+                box.Foreground = Hex(t2);
+                box.CaretBrush = Hex(t2);
+                foreach (Border d in colors.Children) { d.BorderThickness = new Thickness(1); d.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x80, 0x80, 0x80)); }
+                dot.BorderThickness = new Thickness(2.5);
+                dot.BorderBrush = Ui.Brush("Accent");
+            };
+            colors.Children.Add(dot);
+        }
+
+        var label = Ui.Input(T("Label (optional), e.g. work"));
+        label.Text = existing?.Label ?? "";
+        label.Margin = new Thickness(0, 8, 0, 8);
+        _noteLabel = label;
+
+        var keep = Ui.Button(T("Keep"), () => FinishNote(save: true), "AccentButton", T("Hoodie writes it down"));
+        var pin = Ui.Button(Ui.Row(Ui.Icon(Ui.Icons.Pin, 13), Ui.Text(existing?.IsPinned == true ? T("Unpin") : T("Pin to desktop"), 12), 4), () =>
+        {
+            var n = SaveNote();
+            if (n is null) return;
+            _host.Notes.SetPinned(n.Id, !n.IsPinned);
+            _host.Pet.NoteFinished(saved: true);
+            CloseEditor();
+        }, null, T("Keep this note on top of the desktop"));
+        var toss = Ui.Button(Ui.Row(Ui.Icon(Ui.Icons.Trash, 13, "TextDim"), Ui.Text(T("Throw away"), 12, dim: true), 4), () => FinishNote(save: false), "GhostButton",
+            T("Hoodie tears the page out"));
+        var buttons = new DockPanel { Margin = new Thickness(0, 10, 0, 0), LastChildFill = false };
+        DockPanel.SetDock(keep, Dock.Right);
+        buttons.Children.Add(keep);
+        DockPanel.SetDock(pin, Dock.Right);
+        pin.Margin = new Thickness(0, 0, 6, 0);
+        buttons.Children.Add(pin);
+        buttons.Children.Add(toss);
+
+        var dock = new DockPanel();
+        var top = new StackPanel();
+        top.Children.Add(colors);
+        top.Children.Add(Ui.WithPlaceholder(label));
+        DockPanel.SetDock(top, Dock.Top);
+        dock.Children.Add(top);
+        DockPanel.SetDock(buttons, Dock.Bottom);
+        dock.Children.Add(buttons);
+        dock.Children.Add(box);
+        Dispatcher.BeginInvoke(() => { box.Focus(); box.CaretIndex = box.Text.Length; }, DispatcherPriority.Input);
+        return Frame(existing is null ? T("New note") : T("Note"), dock, onBack: () => LeaveEditor());
+    }
+
+    /// <summary>Saves the editor content (creating the note if needed). Empty text removes an existing note.</summary>
+    private Note? SaveNote()
+    {
+        if (_noteBox is null || _noteEdit is null) return null;
+        var text = _noteBox.Text;
+        var label = _noteLabel?.Text;
+        if (_noteEdit == "new")
+        {
+            var n = _host.Notes.Add(text, _noteColor, label);
+            if (n is not null) _noteEdit = n.Id;
+            return n;
+        }
+        var id = _noteEdit;
+        _host.Notes.Update(id, text);
+        _host.Notes.SetColor(id, _noteColor);
+        _host.Notes.SetLabel(id, label);
+        return _host.Notes.Find(id);
+    }
+
+    private void FinishNote(bool save)
+    {
+        if (save)
+        {
+            var n = SaveNote();
+            _host.Pet.NoteFinished(saved: n is not null);
+        }
+        else
+        {
+            if (_noteEdit is { } id && id != "new") _host.Notes.Delete(id);
+            _host.Pet.NoteFinished(saved: false);
+        }
+        CloseEditor();
+    }
+
+    /// <summary>Back / Esc / closing the panel: an existing note is kept; a new draft that was never kept is abandoned.</summary>
+    private void LeaveEditor(bool showBoard = true)
+    {
+        if (_noteEdit is null) return;
+        if (_noteEdit == "new")
+        {
+            if (!string.IsNullOrWhiteSpace(_noteBox?.Text)) _host.Pet.NoteFinished(saved: false);
+        }
+        else
+        {
+            SaveNote();
+        }
+        if (showBoard) CloseEditor();
+        else ResetEditor();
+    }
+
+    private void ResetEditor()
+    {
+        _noteEdit = null;
+        _noteBox = null;
+        _noteLabel = null;
+    }
+
+    private void CloseEditor()
+    {
+        ResetEditor();
+        if (_page == PanelPage.Notes && IsVisible) Show(PanelPage.Notes);
     }
 
     // ------------------------------------------------------------------ Reminders

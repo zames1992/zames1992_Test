@@ -140,6 +140,10 @@ public sealed partial class PetController
                 {
                     Animation.Play(a.Loop, force: true);
                 }
+                else
+                {
+                    UpdateNoteThinking();
+                }
                 break;
         }
     }

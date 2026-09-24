@@ -19,6 +19,8 @@ public sealed partial class PetController
     private bool _sleptBecauseUserAway;
 
     private AnimClip _emote;
+    private ReactionPriority _emoteTier = ReactionPriority.Contextual;
+    private readonly Queue<AnimClip> _emoteChain = new();
     private Action? _afterEmote;
     private BehaviorState _emoteReturn = BehaviorState.Idle;
 
@@ -48,8 +50,9 @@ public sealed partial class PetController
 
     private void UpdateIdle()
     {
-        if (Animation.Current != AnimClip.IdleBreathing && (Animation.IsFinished || Animation.CurrentInfo.Loop))
-            Animation.Play(AnimClip.IdleBreathing);
+        var baseLoop = IdleDirector.BaseLoop;
+        if (Animation.Current != baseLoop && (Animation.IsFinished || Animation.CurrentInfo.Loop))
+            Animation.Play(baseLoop);
 
         var m = Metrics;
         // Standing somewhere Hoodie is not allowed to stop (e.g. thrown into a NO_GO area)? Walk out.
@@ -59,10 +62,18 @@ public sealed partial class PetController
             return;
         }
 
-        if (_time < _nextDecisionAt) return;
-        ScheduleDecision(Brain.NextDecisionDelay(EffectiveMode));
+        if (_time < _nextDecisionAt)
+        {
+            // Between decisions the idle director keeps the body alive with small, varied moments.
+            if (Machine.TimeInState > 0.8 && IdleDirector.Tick(_time, IdlePosture.Standing, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear) is AnimClip micro)
+                PlayEmoteAt(micro, null, ReactionPriority.Idle);
+            return;
+        }
+        ScheduleDecision(Brain.NextDecisionDelay(EffectiveMode) * AfkDecisionFactor);
         Decide();
     }
+
+    private bool CursorNear => Vec2.Distance(_cursor, HeadWorld) < Dip(260);
 
     private bool IsHiddenMode => Mode == PresenceMode.Alone;
 
@@ -112,7 +123,11 @@ public sealed partial class PetController
             _userIdle,
             cursorMon == mon && _cursor.Y > mon.WorkArea.Bottom - Dip(260),
             IsAtRestSpot(),
-            Settings.ReducedMotion);
+            Settings.ReducedMotion,
+            Mind.Afk,
+            OnLedge(),
+            Mind.Boredom,
+            Mind.Sleepiness);
 
         var act = Brain.Choose(ctx);
         Log?.Invoke($"decide {act} (mode {mode})");
@@ -148,8 +163,18 @@ public sealed partial class PetController
                 BeginSit(sleepAfter: false);
                 break;
             case Activity.Sleep:
-                _sleptBecauseUserAway = _userIdle > 240;
+                _sleptBecauseUserAway = Mind.Afk >= AfkPhase.Sleepy;
                 BeginSit(sleepAfter: true);
+                break;
+            case Activity.SitEdge:
+                // Sit on the edge of the floor (the top of the taskbar) and swing the legs.
+                StartActivity("edge", sitting: false, enter: new(), loop: AnimClip.SitEdge, exit: new() { (AnimClip.Jump, 0.25) },
+                    loopSeconds: 15 + _rng.NextDouble() * 35);
+                break;
+            case Activity.LieAround:
+                if (!RoomToLie()) break;
+                StartActivity("lie", sitting: true, enter: new() { (AnimClip.LieDown, null) }, loop: AnimClip.LieIdle,
+                    exit: new() { (AnimClip.WakeFromLying, null) }, loopSeconds: 10 + _rng.NextDouble() * 20);
                 break;
             case Activity.Stretch:
                 PlayEmote(AnimClip.Stretch);
@@ -301,8 +326,27 @@ public sealed partial class PetController
             }
             return;
         }
-        if (Animation.Current is not (AnimClip.SitDown or AnimClip.SitIdle or AnimClip.WakeUp)) Animation.Play(AnimClip.SitIdle);
-        if (Animation.Current == AnimClip.WakeUp && Animation.IsFinished) Animation.Play(AnimClip.SitIdle);
+        if (_sitMicro is AnimClip micro)
+        {
+            var info = AnimationCatalog.Get(micro);
+            if (Animation.Current != micro || (info.Loop ? _time >= _sitMicroUntil : Animation.IsFinished))
+            {
+                _sitMicro = null;
+                Animation.Play(AnimClip.SitIdle);
+            }
+        }
+        else
+        {
+            if (Animation.Current is not (AnimClip.SitDown or AnimClip.SitIdle or AnimClip.WakeUp or AnimClip.WakeFromLying)) Animation.Play(AnimClip.SitIdle);
+            if (Animation.Current is AnimClip.WakeUp or AnimClip.WakeFromLying && Animation.IsFinished) Animation.Play(AnimClip.SitIdle);
+            if (Animation.Current == AnimClip.SitIdle && Machine.TimeInState > 2 &&
+                IdleDirector.Tick(_time, IdlePosture.Sitting, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear) is AnimClip m)
+            {
+                _sitMicro = m;
+                _sitMicroUntil = _time + 5 + _rng.NextDouble() * 7;
+                Animation.Play(m);
+            }
+        }
 
         if (_time < _sitUntil) return;
         if (_sleepAfterSit || Drives.Energy < 0.2)
@@ -314,6 +358,8 @@ public sealed partial class PetController
     }
 
     private Action? _afterStand;
+    private AnimClip? _sitMicro;
+    private double _sitMicroUntil;
 
     private void StandUp(Action? then)
     {
@@ -341,19 +387,48 @@ public sealed partial class PetController
 
     private void BeginSleep()
     {
+        if (!_worldAsleep && !RoomToLie())
+        {
+            // Too close to the edge of the screen to lie down: shuffle inwards first.
+            var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+            var half = Metrics.HeightPx * 0.55 + Dip(4);
+            var x = Math.Clamp(Feet.X, mon.WorkArea.Left + half, mon.WorkArea.Right - half);
+            StartWalk(x, run: false, onArrive: () => BeginSit(sleepAfter: true));
+            return;
+        }
         var mode = EffectiveMode;
         var minutes = mode is PresenceMode.Quiet or PresenceMode.Focus ? 4 + _rng.NextDouble() * 6 : 1.5 + _rng.NextDouble() * 3;
+        if (_sleptBecauseUserAway) minutes = Math.Max(minutes, 30);
         _sleepUntil = _time + minutes * 60;
+        _nextDream = _time + 25 + _rng.NextDouble() * 40;
+        _sitMicro = null;
         Go(BehaviorState.Sleeping, "fall asleep", force: true);
-        Animation.Play(AnimClip.SleepStart, force: true);
+        // Sleeping is lying down, curled up (sitting upright asleep looked eerie).
+        Animation.Play(AnimClip.LieDown, force: true);
+    }
+
+    private double _nextDream;
+
+    /// <summary>Is there room to lie down here without the body poking out of the screen?</summary>
+    private bool RoomToLie()
+    {
+        var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+        var half = Metrics.HeightPx * 0.55;
+        return Feet.X - mon.WorkArea.Left > half && mon.WorkArea.Right - Feet.X > half;
     }
 
     private Action? _afterWake;
 
     private void UpdateSleeping()
     {
-        if (Animation.Current == AnimClip.SleepStart && Animation.IsFinished) Animation.Play(AnimClip.SleepLoop);
-        if (Animation.Current == AnimClip.WakeUp)
+        if (Animation.Current is AnimClip.LieDown or AnimClip.DreamTwitch && Animation.IsFinished) Animation.Play(AnimClip.SleepLying);
+        if (Animation.Current is AnimClip.SleepStart or AnimClip.SleepLoop) Animation.Play(AnimClip.SleepLying);
+        if (Animation.Current == AnimClip.SleepLying && _time >= _nextDream)
+        {
+            _nextDream = _time + 25 + _rng.NextDouble() * 50;
+            Animation.Play(AnimClip.DreamTwitch, force: true, restart: true);
+        }
+        if (Animation.Current is AnimClip.WakeUp or AnimClip.WakeFromLying)
         {
             if (Animation.IsFinished)
             {
@@ -369,10 +444,12 @@ public sealed partial class PetController
         }
         if (_worldAsleep) return;
 
-        var userBack = _sleptBecauseUserAway && _userIdle < 2;
-        if (_time >= _sleepUntil || (Drives.Energy > 0.97 && Machine.TimeInState > 90) || userBack)
+        // Sleeping because the user is away: keep sleeping until they return (handled by the AFK timeline).
+        if (_sleptBecauseUserAway && Mind.Afk != AfkPhase.Present) return;
+        if (_time >= _sleepUntil || (Drives.Energy > 0.97 && Machine.TimeInState > 90))
         {
             _sleptBecauseUserAway = false;
+            Mind.OnRested();
             WakeUp(null);
         }
     }
@@ -385,13 +462,15 @@ public sealed partial class PetController
             return;
         }
         _afterWake = then;
-        Animation.Play(AnimClip.WakeUp, force: true);
+        Animation.Play(AnimClip.WakeFromLying, force: true);
     }
 
     // ------------------------------------------------------------------ emotes & sequences
 
     /// <summary>Plays a one-shot expressive clip, returning to the previous calm state afterwards.</summary>
-    public bool PlayEmote(AnimClip clip, Action? after = null)
+    public bool PlayEmote(AnimClip clip, Action? after = null) => PlayEmoteAt(clip, after, ReactionPriority.Contextual);
+
+    private bool PlayEmoteAt(AnimClip clip, Action? after, ReactionPriority tier)
     {
         if (Machine.IsPhysical || Machine.State is BehaviorState.Hidden or BehaviorState.Leaving or BehaviorState.Returning
                 or BehaviorState.Alert or BehaviorState.Vanishing or BehaviorState.Appearing or BehaviorState.ReceivingItem
@@ -406,6 +485,7 @@ public sealed partial class PetController
         if (Machine.State == BehaviorState.Walking) _walkTargetX = null;
         _emote = clip;
         _afterEmote = after;
+        _emoteTier = tier;
         _emoteReturn = BehaviorState.Idle;
         Go(BehaviorState.Emote, clip.ToString(), force: true);
         return Animation.Play(clip, force: true, restart: true);
@@ -414,6 +494,14 @@ public sealed partial class PetController
     private void UpdateEmote()
     {
         if (Animation.Current == _emote && !Animation.IsFinished) return;
+        if (_emoteChain.Count > 0 && Animation.Current == _emote)
+        {
+            var next = _emoteChain.Dequeue();
+            _emote = next;
+            Animation.Play(next, force: true, restart: true);
+            return;
+        }
+        _emoteChain.Clear();
         var after = _afterEmote;
         _afterEmote = null;
         Go(_emoteReturn, "emote done", force: true);
@@ -486,6 +574,7 @@ public sealed partial class PetController
     public void ItemReceived(bool alreadyHad)
     {
         _dragHovering = false;
+        Mind.OnItemReceived();
         if (Machine.State == BehaviorState.Activity && _activity is { Name: "backpack" })
         {
             // Backpack is already open: the object goes straight in.
@@ -511,6 +600,13 @@ public sealed partial class PetController
     /// <summary>Utility feedback (Thinking, Success, Error, PresentItem, MissingItem).</summary>
     public void Feedback(AnimClip clip)
     {
+        // Success / Error become varied reactions (thumbs up, proud, facepalm, confused...).
+        if (clip is AnimClip.Success or AnimClip.Error)
+        {
+            if (clip == AnimClip.Error) Mind.OnFailure(); else Mind.OnSmallWin();
+            var r = Reactions.Resolve(clip == AnimClip.Success ? PetEvent.TaskSucceeded : PetEvent.TaskFailed, Mind, EffectiveMode, _time);
+            if (r is { } rr) clip = rr.Clips[0];
+        }
         if (Machine.State == BehaviorState.Activity && _activity is not null)
         {
             Interject(clip);
@@ -556,17 +652,26 @@ public sealed partial class PetController
     {
         if (!Settings.PcStatusReactions) return;
         if (EffectiveMode is PresenceMode.Focus || Machine.State != BehaviorState.Idle) return;
+        Mind.PcLoad = mood == EnvironmentMood.Busy ? 1 : 0;
         switch (mood)
         {
             case EnvironmentMood.Busy:
                 Drives.OnEnvironmentBusy();
-                PlayEmote(AnimClip.PCBusy);
+                // Diegetic: a busy CPU is heavy lifting, so Hoodie hauls a crate for a while.
+                if (Reactions.Resolve(PetEvent.PcBusy, Mind, EffectiveMode, _time) is { } busy)
+                {
+                    if (busy.Clips[0] == AnimClip.CarryLoad)
+                        StartActivity("carry", sitting: false, enter: new(), loop: AnimClip.CarryLoad, exit: new() { (AnimClip.Sigh, null) },
+                            loopSeconds: 6 + _rng.NextDouble() * 5);
+                    else PlayEmote(busy.Clips[0]);
+                }
                 break;
             case EnvironmentMood.Downloading:
-                PlayEmote(AnimClip.DownloadWatching);
+                // Data arrives as parcels falling from above.
+                React(PetEvent.DownloadActive);
                 break;
             case EnvironmentMood.CalmedDown:
-                PlayEmote(AnimClip.PCIdle);
+                React(PetEvent.PcCalm);
                 break;
         }
     }
@@ -648,11 +753,11 @@ public sealed partial class PetController
 
         switch (ev)
         {
-            case CursorEvent.Surprised when mode is not (PresenceMode.Focus or PresenceMode.Quiet) && Machine.State is BehaviorState.Idle:
-                PlayEmote(AnimClip.Surprised);
+            case CursorEvent.Surprised when Machine.State is BehaviorState.Idle:
+                React(PetEvent.CursorRushed);
                 break;
-            case CursorEvent.Curious when mode is PresenceMode.Normal or PresenceMode.Company or PresenceMode.Play && Machine.State is BehaviorState.Idle:
-                PlayEmote(AnimClip.Curious);
+            case CursorEvent.Curious when Machine.State is BehaviorState.Idle:
+                React(PetEvent.CursorApproached);
                 break;
             case CursorEvent.Obstructing:
                 Cursor.MakeShy(_time, 60);
@@ -694,15 +799,16 @@ public sealed partial class PetController
     public void Clicked()
     {
         Drives.OnUserAttention();
+        Mind.OnClicked();
         if (Machine.State == BehaviorState.Sleeping)
         {
             WakeUp(null);
             return;
         }
-        if (Machine.State is BehaviorState.Idle or BehaviorState.Walking && !Animation.IsOnCooldown(AnimClip.Wave))
+        if (Machine.State is BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Emote && !Animation.IsOnCooldown(AnimClip.Wave))
         {
             _walkTargetX = null;
-            PlayEmote(AnimClip.Wave);
+            React(PetEvent.Clicked);
         }
     }
 
@@ -725,7 +831,7 @@ public sealed partial class PetController
                 break;
             case PresenceMode.Quiet:
                 if (Machine.State is BehaviorState.Walking) StopWalk("quiet");
-                if (CanReact && Machine.State is BehaviorState.Idle) BeginSit(sleepAfter: false);
+                if (CanReact && Machine.State is BehaviorState.Idle or BehaviorState.Emote) BeginSit(sleepAfter: false);
                 break;
             case PresenceMode.Play:
                 if (CanReact)
@@ -810,6 +916,36 @@ public sealed partial class PetController
                 SetMode(PresenceMode.Company);
                 break;
         }
+    }
+
+    /// <summary>Walks to the floor below a point the user chose (desktop menu "Come here"); optionally stays there.</summary>
+    public void ComeTo(Vec2 point, bool stay)
+    {
+        if (Mode == PresenceMode.Alone) SetMode(_modeBeforeAlone == PresenceMode.Alone ? PresenceMode.Normal : _modeBeforeAlone);
+        var mon = World.MonitorAt(point) ?? World.NearestMonitor(point);
+        var target = new Vec2(point.X, mon.WorkArea.Bottom);
+        if (stay) Territory.ClearAnchor();
+        if (!CanReact) return;
+        var far = Vec2.Distance(target, Feet) > Dip(600);
+        EnsureStanding(() =>
+        {
+            if (!TravelTo(target, run: far, onArrive: () =>
+                {
+                    if (stay) Territory.SetAnchor(Feet, Dip(220));
+                    PlayEmote(stay ? AnimClip.ThumbsUp : AnimClip.Wave);
+                }))
+                TravelTo(target, run: far, onArrive: () => PlayEmote(AnimClip.Confused), ignoreTerritory: true);
+        });
+    }
+
+    /// <summary>Makes the floor below a point Hoodie's Home (desktop menu "Set Home here") and walks there.</summary>
+    public void SetHomeAt(Vec2 point)
+    {
+        var mon = World.MonitorAt(point) ?? World.NearestMonitor(point);
+        var feet = new Vec2(Math.Clamp(point.X, mon.WorkArea.Left + Metrics.HalfWidthPx, mon.WorkArea.Right - Metrics.HalfWidthPx), mon.WorkArea.Bottom);
+        Territory.SetHome(mon, feet);
+        if (!CanReact) return;
+        EnsureStanding(() => TravelTo(feet, run: false, onArrive: () => PlayEmote(AnimClip.Proud), ignoreTerritory: true));
     }
 
     public void SetHomeHere()

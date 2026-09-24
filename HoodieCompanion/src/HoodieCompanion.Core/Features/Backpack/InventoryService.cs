@@ -44,8 +44,13 @@ public sealed class InventoryService
     public static bool LooksLikeUrl(string s) =>
         Uri.TryCreate(s.Trim(), UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps);
 
+    /// <summary>Shell parsing names of virtual objects: "::{GUID}", "shell:AppsFolder\...", "shell:RecycleBinFolder".</summary>
+    public static bool IsShellName(string s) =>
+        s.StartsWith("::{", StringComparison.Ordinal) || s.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
+
     public InventoryItemType Classify(string target)
     {
+        if (IsShellName(target)) return InventoryItemType.ShellItem;
         if (LooksLikeUrl(target)) return InventoryItemType.Url;
         if (_dirExists(target)) return InventoryItemType.Folder;
         var ext = Path.GetExtension(target).ToLowerInvariant();
@@ -62,6 +67,12 @@ public sealed class InventoryService
         if (type == InventoryItemType.Url)
         {
             return Uri.TryCreate(target, UriKind.Absolute, out var u) ? u.Host + (u.AbsolutePath.Length > 1 ? u.AbsolutePath : "") : target;
+        }
+        if (type == InventoryItemType.ShellItem)
+        {
+            var tail = target.Contains('\\') ? target[(target.LastIndexOf('\\') + 1)..] : target;
+            var bang = tail.IndexOf('!');
+            return bang > 0 ? tail[..bang].Split('_')[0].Split('.').Last() : tail;
         }
         var trimmed = target.TrimEnd('\\', '/');
         var name = type is InventoryItemType.Shortcut or InventoryItemType.Application
@@ -139,9 +150,28 @@ public sealed class InventoryService
         Commit(notify: false);
     }
 
+    /// <summary>Moves an item to a new position in the manual order (pinned items stay in front).</summary>
+    public void Move(string id, int newIndex)
+    {
+        var list = Ordered().ToList();
+        var item = list.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+        list.Remove(item);
+        newIndex = Math.Clamp(newIndex, 0, list.Count);
+        list.Insert(newIndex, item);
+        for (var i = 0; i < list.Count; i++) list[i].SortOrder = i;
+        // Dropping among pinned items pins it, dropping after them unpins, so the order is exactly what the user sees.
+        var before = newIndex > 0 ? list[newIndex - 1] : null;
+        var after = newIndex + 1 < list.Count ? list[newIndex + 1] : null;
+        if (item.IsPinned && before is { IsPinned: false }) item.IsPinned = false;
+        else if (!item.IsPinned && after is { IsPinned: true }) item.IsPinned = true;
+        Commit();
+    }
+
     public bool Exists(InventoryItem item) => item.Type switch
     {
         InventoryItemType.Url => true,
+        InventoryItemType.ShellItem => true,
         InventoryItemType.Folder => _dirExists(item.Target),
         _ => _fileExists(item.Target) || _dirExists(item.Target),
     };

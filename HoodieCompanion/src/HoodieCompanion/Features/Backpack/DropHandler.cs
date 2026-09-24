@@ -11,7 +11,7 @@ namespace HoodieCompanion.Features.Backpack;
 public static class DropHandler
 {
     public static bool CanAccept(IDataObject data) =>
-        data.GetDataPresent(DataFormats.FileDrop) || ExtractUrl(data) is not null;
+        data.GetDataPresent(DataFormats.FileDrop) || data.GetDataPresent(HoodieCompanion.Platform.ShellInterop.ShellIdListFormat) || ExtractUrl(data) is not null;
 
     public static IReadOnlyList<string> Extract(IDataObject data)
     {
@@ -21,6 +21,12 @@ public static class DropHandler
             if (data.GetDataPresent(DataFormats.FileDrop) && data.GetData(DataFormats.FileDrop) is string[] files)
             {
                 result.AddRange(files.Where(f => !string.IsNullOrWhiteSpace(f)));
+            }
+            else if (data.GetDataPresent(HoodieCompanion.Platform.ShellInterop.ShellIdListFormat) &&
+                     data.GetData(HoodieCompanion.Platform.ShellInterop.ShellIdListFormat) is MemoryStream ids)
+            {
+                // Virtual shell objects (Recycle Bin, This PC...) have no file path: use their shell parsing names.
+                result.AddRange(HoodieCompanion.Platform.ShellInterop.ParseIdList(ids));
             }
             else if (ExtractUrl(data) is string url)
             {

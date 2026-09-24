@@ -49,6 +49,7 @@ public sealed class AppHost : IDisposable
     private ForegroundInfo _foreground = new(null, null, null, null);
     private AppPresenceMode _foregroundRule;
     private double _userIdle;
+    private CommandChannel? _commands;
     private int _housekeepingTicks;
     private RenderState _last;
     private bool _disposed;
@@ -87,6 +88,8 @@ public sealed class AppHost : IDisposable
     public ReminderService Reminders { get; }
     public TimerService Timers { get; }
     public ShellIconService Icons { get; }
+    public AppCatalog Apps { get; } = new();
+    public StickyNotes? StickyNotes { get; private set; }
     public SoundService Sound { get; }
     public SystemStatus? LatestStatus => _monitor?.Latest;
     public bool EnvironmentBusy => _environment.IsBusy;
@@ -126,6 +129,8 @@ public sealed class AppHost : IDisposable
         _petWindow.ItemDragLeave += () => Pet.DragLeft();
         _petWindow.ItemsDropped += items => GiveItems(items);
         _petWindow.Show();
+        StickyNotes = new StickyNotes(Notes);
+        StickyNotes.Sync();
 
         _hotkey = new HotkeyService(_petWindow.Hwnd, () => SetEmergencyHidden(!EmergencyHidden));
         try
@@ -142,7 +147,7 @@ public sealed class AppHost : IDisposable
         Territory.Changed += SaveTerritory;
         Reminders.Due += OnReminderDue;
         Timers.Finished += OnTimerFinished;
-        Inventory.Changed += () => Pet.HasItems = Inventory.Items.Count > 0;
+        Inventory.Changed += () => { Pet.HasItems = Inventory.Items.Count > 0; Pet.Mind.BackpackItems = Inventory.Items.Count; };
 
         _monitor = new SystemMonitorService(_app.Dispatcher);
         _monitor.Updated += OnSystemStatus;
@@ -152,6 +157,8 @@ public sealed class AppHost : IDisposable
         SystemEvents.SessionSwitch += OnSessionSwitch;
 
         Pet.Place(InitialPosition(), appear: true);
+        _commands = new CommandChannel((c, x, y) => _app.Dispatcher.BeginInvoke(() => DesktopCommand(c, x, y)));
+        ApplyDesktopMenu();
         _clock.Tick += OnFrame;
         _clock.Start();
         _housekeeping.Start();
@@ -212,6 +219,7 @@ public sealed class AppHost : IDisposable
                 FullscreenMonitorId = _foreground.FullscreenMonitorId,
                 ForegroundRule = _foregroundRule,
                 ForegroundMonitorId = _foreground.MonitorId,
+                LocalHour = DateTime.Now.Hour,
             };
             var rs = Pet.Update(input);
             _last = rs;
@@ -272,6 +280,7 @@ public sealed class AppHost : IDisposable
             if (_housekeepingTicks % 2 == 0) RefreshMonitors();
             if (_housekeepingTicks % 2 == 1 && Settings.AlwaysOnTop && !EmergencyHidden) WindowInterop.AssertTopmost(_petWindow.Hwnd);
             if (_housekeepingTicks % 30 == 0) RememberPosition();
+            if (_housekeepingTicks == 20) _ = Apps.LoadAsync();
         }
         catch (Exception ex)
         {
@@ -348,6 +357,39 @@ public sealed class AppHost : IDisposable
         SaveSettings();
     }
 
+    /// <summary>A command from the desktop right-click menu, with the point where the user clicked.</summary>
+    public void DesktopCommand(string command, double x, double y)
+    {
+        var at = new Vec2(x, y);
+        Log.Info($"desktop command {command} at {x:0},{y:0}");
+        switch (command)
+        {
+            case "comehere":
+            case "stayhere":
+                if (EmergencyHidden) SetEmergencyHidden(false);
+                Pet.ComeTo(at, stay: command == "stayhere");
+                SaveSettings();
+                break;
+            case "sethome":
+                if (EmergencyHidden) SetEmergencyHidden(false);
+                Pet.SetHomeAt(at);
+                SaveTerritory();
+                break;
+            case "panel":
+                OpenPanel(PanelPage.Home);
+                break;
+            case "hide":
+                SetEmergencyHidden(!EmergencyHidden);
+                break;
+        }
+    }
+
+    public void ApplyDesktopMenu()
+    {
+        if (Settings.DesktopMenu) DesktopMenuService.Register(L.T);
+        else DesktopMenuService.Unregister();
+    }
+
     public void SetHomeHere()
     {
         Pet.SetHomeHere();
@@ -385,7 +427,8 @@ public sealed class AppHost : IDisposable
         {
             try
             {
-                var r = Inventory.Add(t);
+                var name = InventoryService.IsShellName(t) ? ShellInterop.DisplayName(t) : null;
+                var r = Inventory.Add(t, name);
                 any = true;
                 allAlready &= r.AlreadyPresent;
                 Icons.Get(r.Item);
@@ -421,17 +464,15 @@ public sealed class AppHost : IDisposable
                 }, Icon: Ui.Icons.Backpack));
             return;
         }
-        if (ShortcutService.Open(item, out var error))
-        {
-            Inventory.MarkOpened(item.Id);
-            Pet.ItemPresented();
-        }
-        else
+        // Hoodie hands it over at once; Windows opens it in the background.
+        Inventory.MarkOpened(item.Id);
+        Pet.ItemPresented();
+        ShortcutService.OpenAsync(item, error =>
         {
             Pet.Feedback(AnimClip.Error);
-            _alerts.Enqueue(new AlertRequest(L.T("Couldn't open it"), error ?? L.T("Windows refused to open this item."),
+            _alerts.Enqueue(new AlertRequest(L.T("Couldn't open it"), string.IsNullOrEmpty(error) ? L.T("Windows refused to open this item.") : error,
                 new[] { new AlertAction(L.T("OK"), () => { }, true) }, Icon: Ui.Icons.Backpack));
-        }
+        });
     }
 
     private void Locate(InventoryItem item)
@@ -462,10 +503,11 @@ public sealed class AppHost : IDisposable
 
     // ---------------- Notes, reminders, timers
 
-    public void AddNote(string text)
+    public Note? AddNote(string text, string? color = null, string? label = null)
     {
-        if (Notes.Add(text) is null) return;
-        Pet.Feedback(AnimClip.Success);
+        var n = Notes.Add(text, color, label);
+        if (n is not null) Pet.NoteFinished(saved: true);
+        return n;
     }
 
     public void AddReminder(string text, DateTime due)
@@ -557,6 +599,7 @@ public sealed class AppHost : IDisposable
     {
         Settings.Normalize();
         L.Set(Settings.Language);
+        ApplyDesktopMenu();
         _petWindow.Topmost = Settings.AlwaysOnTop;
         if (!Settings.AlwaysOnTop) WindowInterop.ClearTopmost(_petWindow.Hwnd);
         SaveSettings();
@@ -621,6 +664,8 @@ public sealed class AppHost : IDisposable
         _hotkey?.Dispose();
         _tray?.Dispose();
         _monitor?.Dispose();
+        StickyNotes?.CloseAll();
+        _commands?.Dispose();
     }
 
     public RenderState LastRender => _last;

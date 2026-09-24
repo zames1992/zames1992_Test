@@ -7,6 +7,8 @@ public enum InventoryItemType
     Folder,
     Shortcut,
     Url,
+    /// <summary>A virtual shell object: Recycle Bin, This PC, Control Panel, Store apps (Calculator...).</summary>
+    ShellItem,
 }
 
 /// <summary>

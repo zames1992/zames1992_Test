@@ -46,7 +46,7 @@ public sealed class CharacterRig : Canvas
     /// <summary>Paths of the body that accept mouse input (everything but the ground shadow and props).</summary>
     public IEnumerable<Path> HitParts => _partsByGroup.Where(k => IsBodyGroup(k.Key)).SelectMany(k => k.Value);
 
-    private static readonly HashSet<string> PropGroups = new() { "shadow", "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil" };
+    private static readonly HashSet<string> PropGroups = new() { "shadow", "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil", "crate" };
 
     private static bool IsBodyGroup(string name) => !PropGroups.Contains(name);
 
@@ -171,6 +171,7 @@ public sealed class CharacterRig : Canvas
         Set("book", 0, 0, 0, Pop(p.PropBook), Pop(p.PropBook));
         Set("notebook", 0, 0, 0, Pop(p.PropNotebook), Pop(p.PropNotebook));
         Set("pencil", 0, 0, 0, Pop(p.PropPencil), Pop(p.PropPencil));
+        Set("crate", 0, 24 - 40 * (1 - Math.Clamp(p.PropCrate, 0, 1)), 0, Pop(p.PropCrate), Pop(p.PropCrate));
 
         foreach (var g in _order)
         {
@@ -195,6 +196,7 @@ public sealed class CharacterRig : Canvas
         SetOpacity("book", p.PropBook);
         SetOpacity("notebook", p.PropNotebook);
         SetOpacity("pencil", p.PropPencil);
+        SetOpacity("crate", p.PropCrate);
         Opacity = p.Opacity;
     }
 

@@ -60,6 +60,10 @@ public sealed class TerritoryEditor
             o.Redraw();
         }
         _toolbar = BuildToolbar();
+        // Owned by an overlay, the toolbar always stays above the overlays: clicking an area (erase, draw)
+        // can no longer cover it, so the other tools stay clickable.
+        var primary = _overlays.FirstOrDefault(o => o.Monitor.IsPrimary) ?? _overlays.FirstOrDefault();
+        if (primary is not null) _toolbar.Owner = primary;
         _toolbar.Show();
         var p = _host.World.Primary;
         var s = p.Scale;
@@ -81,6 +85,13 @@ public sealed class TerritoryEditor
     private void RedrawAll()
     {
         foreach (var o in _overlays) o.Redraw();
+        KeepToolbarOnTop();
+    }
+
+    private void KeepToolbarOnTop()
+    {
+        if (_toolbar is null) return;
+        WindowInterop.AssertTopmost(WindowInterop.Handle(_toolbar));
     }
 
     private Window BuildToolbar()
@@ -94,17 +105,40 @@ public sealed class TerritoryEditor
             Topmost = true,
             ShowInTaskbar = false,
             ResizeMode = ResizeMode.NoResize,
-            Width = 700,
-            Height = 170,
+            Width = 720,
+            Height = 300,
             FontFamily = Ui.Font,
         };
         var title = Ui.Text(T("Where may Hoodie go? Drag on any screen to mark an area."), 14, weight: FontWeights.SemiBold);
         var chips = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        foreach (var (tool, label) in new[] { (Tool.Free, T("Allowed")), (Tool.Quiet, T("Quiet")), (Tool.PassThrough, T("Pass through")), (Tool.NoGo, T("Never enter")), (Tool.Erase, T("Erase")), (Tool.Home, T("Set Home (click)")) })
+        foreach (var (tool, label, tip) in Tools())
         {
             var t = tool;
-            chips.Children.Add(Ui.Chip(label, _tool == tool, "tool", () => _tool = t));
+            var chip = Ui.Chip(label, _tool == tool, "tool", () => { _tool = t; UpdateHint(); }, tip);
+            chips.Children.Add(chip);
         }
+        // What each kind of area means, always visible.
+        var legend = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+        legend.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        legend.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var row = 0;
+        foreach (var type in new[] { RegionType.Free, RegionType.Quiet, RegionType.PassThrough, RegionType.NoGo })
+        {
+            legend.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var c = ColorFor(type);
+            var sw = new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(3), Background = new SolidColorBrush(Color.FromArgb(0xFF, c.R, c.G, c.B)), Margin = new Thickness(0, 2, 8, 2), VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(sw, row);
+            legend.Children.Add(sw);
+            var tx = Ui.Text(LabelFor(type) + " — " + Meaning(type), 12);
+            tx.Margin = new Thickness(0, 1, 0, 1);
+            Grid.SetRow(tx, row);
+            Grid.SetColumn(tx, 1);
+            legend.Children.Add(tx);
+            row++;
+        }
+        _toolHint = Ui.Text("", 11.5, dim: true);
+        _toolHint.Margin = new Thickness(0, 8, 0, 0);
+        UpdateHint();
         var done = Ui.Button(T("Done"), Close, "AccentButton");
         var clear = Ui.Button(T("Clear all areas"), () => { _host.Territory.Data.Regions.Clear(); RedrawAll(); });
         clear.Margin = new Thickness(0, 0, 8, 0);
@@ -115,10 +149,39 @@ public sealed class TerritoryEditor
         var sp = new StackPanel { Margin = new Thickness(18, 14, 18, 14) };
         sp.Children.Add(title);
         sp.Children.Add(chips);
+        sp.Children.Add(legend);
+        sp.Children.Add(_toolHint);
         sp.Children.Add(Ui.Row(hint, buttons));
         w.Content = Ui.Chrome(sp);
         w.KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
         return w;
+    }
+
+    private TextBlock? _toolHint;
+
+    private static IEnumerable<(Tool, string, string)> Tools() => new[]
+    {
+        (Tool.Free, T("Allowed"), Meaning(RegionType.Free)),
+        (Tool.Quiet, T("Quiet"), Meaning(RegionType.Quiet)),
+        (Tool.PassThrough, T("Pass through"), Meaning(RegionType.PassThrough)),
+        (Tool.NoGo, T("Never enter"), Meaning(RegionType.NoGo)),
+        (Tool.Erase, T("Erase"), T("Click an area to remove it.")),
+        (Tool.Home, T("Set Home (click)"), T("Click on a floor: this is where Hoodie lives and rests.")),
+    };
+
+    public static string Meaning(RegionType t) => t switch
+    {
+        RegionType.Free => T("Hoodie may walk, stop, sit and play here."),
+        RegionType.Quiet => T("Hoodie may be here but keeps calm: no running, no games."),
+        RegionType.PassThrough => T("Hoodie may walk through but never stops or sits here."),
+        _ => T("Hoodie never goes here on its own."),
+    };
+
+    private void UpdateHint()
+    {
+        if (_toolHint is null) return;
+        var (_, label, tip) = Tools().First(x => x.Item1 == _tool);
+        _toolHint.Text = F("Current tool: {0}. {1}", label, _tool is Tool.Erase or Tool.Home ? tip : T("Drag a rectangle on any screen."));
     }
 
     private sealed class Overlay : Window
@@ -128,6 +191,8 @@ public sealed class TerritoryEditor
         private readonly Canvas _canvas = new();
         private readonly Rectangle _preview = new() { StrokeThickness = 2, Visibility = Visibility.Collapsed, RadiusX = 6, RadiusY = 6 };
         private Point? _start;
+
+        public MonitorInfo Monitor => _mon;
 
         public Overlay(TerritoryEditor ed, MonitorInfo mon)
         {
@@ -274,6 +339,7 @@ public sealed class TerritoryEditor
             _start = null;
             ReleaseMouseCapture();
             _preview.Visibility = Visibility.Collapsed;
+            _ed.KeepToolbarOnTop();
             if (Math.Abs(p.X - s.X) < 8 || Math.Abs(p.Y - s.Y) < 8) return;
             var a = ToPx(s);
             var b = ToPx(p);

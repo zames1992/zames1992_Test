@@ -1,3 +1,4 @@
+using HoodieCompanion.Companion.Animation;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -73,6 +74,8 @@ public sealed class QaRunner
         _host.CursorOverride = far;
         _host.ButtonOverride = false;
         _host.Settings.FirstRunDone = true;
+        // The QA machine has no real user: keep the away-from-keyboard timeline out of the scripted scenario.
+        pet.Mind.AfkScale = 10000;
         var testFile = Path.Combine(_out, "test.txt");
         File.WriteAllText(testFile, "Hello from the Hoodie QA run.");
         var testFolder = Directory.CreateDirectory(Path.Combine(_out, "Test Folder")).FullName;
@@ -160,9 +163,9 @@ public sealed class QaRunner
             At(t, "page " + page, () => _host.Panel.Show(page));
             At(t + (page == PanelPage.PcStatus ? 1.1 : 0.6), "snap " + page, () => SnapWindow(_host.Panel, $"{9 + Array.IndexOf(pages, page):00}-panel-{page.ToString().ToLowerInvariant()}"));
         }
-        At(14.9, "backpack-prop", () =>
+        At(15.15, "backpack-prop", () =>
         {
-            Check(_host.LastRender.Pose.PropBackpack > 0.5, "Backpack page: Hoodie opens its backpack");
+            Check(_maxBackpack > 0.5, "Backpack page: Hoodie opens its backpack");
             SnapPet("09b-backpack-pet");
         });
         At(17.75, "timer-input", () =>
@@ -172,9 +175,9 @@ public sealed class QaRunner
         });
         At(18.7, "timer-input-check", () =>
             Check(_timerBox is not null && _timerBox.Text == "3" && _timerBox.IsVisible, "timer: typed minutes are kept while the countdown refreshes"));
-        At(19.95, "laptop", () =>
+        At(20.1, "laptop", () =>
         {
-            Check(pet.State == BehaviorState.Activity && pet.ActivityName == "laptop", "PC Status page: Hoodie sits down with its laptop");
+            Check(_sawLaptop, "PC Status page: Hoodie sits down with its laptop");
             SnapPet("13b-laptop-pet");
         });
         At(21.5, "close panel", () => _host.Panel.Close(animated: false));
@@ -230,7 +233,14 @@ public sealed class QaRunner
             }
         });
         At(58.0, "territory", () => _host.ShowTerritoryEditor());
-        At(59.0, "territory-snap", () => SnapDesktop("21-territory-editor"));
+        At(59.0, "territory-snap", () =>
+        {
+            SnapDesktop("21-territory-editor");
+            var tb = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.Title == "Hoodie territory");
+            Check(tb?.Owner is not null, "territory toolbar stays above the overlays (owned window)");
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Classes\DesktopBackground\Shell\HoodieCompanion\shell");
+            Check(key is not null && key.GetSubKeyNames().Length >= 4, "desktop right-click menu registered");
+        });
         At(59.5, "territory-close", () =>
         {
             foreach (var w in Application.Current.Windows.OfType<Window>().Where(w => w.Title is "Territory" or "Hoodie territory").ToList()) w.Close();
@@ -242,7 +252,103 @@ public sealed class QaRunner
             At(60.5, "travel monitor", () => pet.TravelTo(new Vec2(other.WorkArea.Center.X, other.WorkArea.Bottom), true, null));
             At(75.0, "travel-check", () => Check(world.MonitorAt(pet.Feet) == other, "travels to the other monitor"));
         }
-        At(world.Monitors.Count > 1 ? 76 : 61, "report", Finish);
+        // v1.2: grab anywhere, ledge, notes board + pinned note, lying sleep.
+        var groundX = prim.Left + prim.Width * 0.5;
+        At(77.0, "hand-grab", () =>
+        {
+            _host.SetMode(PresenceMode.Normal);
+            pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
+        });
+        At(77.6, "hand-grab-start", () =>
+        {
+            var hand = pet.Transform.LocalToWorld(new Vec2(140, 596));
+            _host.CursorOverride = hand;
+            _host.ButtonOverride = true;
+            pet.BeginGrab(hand);
+            MoveCursor(hand, hand + new Vec2(0, -world.Primary.Scale * 180), 0.5);
+        });
+        At(79.0, "hand-grab-check", () =>
+        {
+            Check(pet.State == BehaviorState.Grabbed && _host.LastRender.Clip is AnimClip.HangHandL or AnimClip.Struggle or AnimClip.RelaxedCarry,
+                $"held by the hand: hangs from the hand ({_host.LastRender.Clip})");
+            SnapPet("22-hang-hand");
+            _host.ButtonOverride = false;
+            pet.EndGrab(_host.CursorOverride!.Value);
+        });
+        At(81.0, "foot-grab", () =>
+        {
+            pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
+        });
+        At(81.5, "foot-grab-start", () =>
+        {
+            var foot = pet.Transform.LocalToWorld(new Vec2(200, 795));
+            _host.CursorOverride = foot;
+            _host.ButtonOverride = true;
+            pet.BeginGrab(foot);
+            MoveCursor(foot, foot + new Vec2(0, -world.Primary.Scale * 260), 0.5);
+        });
+        At(83.2, "foot-grab-check", () =>
+        {
+            Check(pet.State == BehaviorState.Grabbed && Math.Abs(pet.Transform.Tilt) > 120, $"held by a foot: hangs upside down (tilt {pet.Transform.Tilt:0})");
+            SnapPet("23-hang-foot");
+            _host.ButtonOverride = false;
+            pet.EndGrab(_host.CursorOverride!.Value);
+        });
+        At(86.0, "ledge", () => pet.Place(new Vec2(groundX, prim.Bottom), appear: false));
+        At(86.5, "ledge-grab", () =>
+        {
+            var hood = pet.Transform.LocalToWorld(new Vec2(272, 140));
+            _host.CursorOverride = hood;
+            _host.ButtonOverride = true;
+            pet.BeginGrab(hood);
+            MoveCursor(hood, hood + new Vec2(0, world.Primary.Scale * 175), 0.5);
+        });
+        At(87.6, "ledge-release", () =>
+        {
+            _host.ButtonOverride = false;
+            pet.EndGrab(_host.CursorOverride!.Value);
+            _host.CursorOverride = far;
+        });
+        At(88.1, "ledge-snap", () =>
+        {
+            Check(_host.LastRender.Clip is AnimClip.HangEdge or AnimClip.ClimbEdge, $"dropped below the taskbar edge: grabs the edge ({_host.LastRender.Clip})");
+            SnapPet("24-ledge");
+        });
+        At(91.0, "ledge-check", () => Check(Math.Abs(pet.Feet.Y - (world.MonitorAt(pet.Feet)?.WorkArea.Bottom ?? -1)) < 1 && pet.State != BehaviorState.Hidden,
+            "climbs back up onto the floor (no teleport)"));
+        At(91.5, "note-editor", () =>
+        {
+            _host.OpenPanel(PanelPage.Notes);
+            _host.Panel.QaNewNote("Buy oat milk\nCall the dentist", "green");
+        });
+        At(92.3, "note-editor-snap", () => SnapWindow(_host.Panel, "25-note-editor"));
+        At(92.6, "note-keep", () =>
+        {
+            var id = _host.Panel.QaKeepNote();
+            if (id is not null) _host.Notes.SetPinned(id, true);
+            _host.AddNote("Idea: a hoodie for the cat", "pink", "ideas");
+            _host.AddNote("Wi-Fi: hoodie-guest", "blue");
+        });
+        At(93.4, "notes-board-snap", () =>
+        {
+            Check(_host.Notes.All.Count(n => n.IsPinned) == 1 && (_host.StickyNotes?.Count ?? 0) == 1, "notes: kept note pinned to the desktop");
+            SnapWindow(_host.Panel, "26-notes-board");
+            var sticky = Application.Current.Windows.OfType<StickyNoteWindow>().FirstOrDefault();
+            if (sticky is not null) SnapWindow(sticky, "27-pinned-note");
+            _host.Panel.Close(animated: false);
+        });
+        At(94.0, "sleep", () =>
+        {
+            pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
+            pet.WorldSleep(true);
+        });
+        At(97.0, "sleep-snap", () =>
+        {
+            Check(pet.State == BehaviorState.Sleeping && _host.LastRender.Clip is AnimClip.SleepLying or AnimClip.DreamTwitch, "sleeps lying down");
+            SnapPet("28-sleeping");
+            pet.WorldSleep(false);
+        });
+        At(98.0, "report", Finish);
 
         // Steps run in time order regardless of the order they were declared in.
         var ordered = _steps.Select((st, i) => (st, i)).OrderBy(x => x.st.At).ThenBy(x => x.i).Select(x => x.st).ToList();
@@ -254,6 +360,8 @@ public sealed class QaRunner
     }
 
     private (TimeSpan Cpu, double At) _cpuStart;
+    private double _maxBackpack;
+    private bool _sawLaptop;
     private System.Windows.Controls.TextBox? _timerBox;
 
     private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
@@ -279,6 +387,8 @@ public sealed class QaRunner
     {
         var now = Now;
         _seenStates.Add(_host.Pet.State);
+        if (_host.Panel.IsOpen && _host.Panel.Page == PanelPage.Backpack) _maxBackpack = Math.Max(_maxBackpack, _host.LastRender.Pose.PropBackpack);
+        if (_host.Panel.IsOpen && _host.Panel.Page == PanelPage.PcStatus && _host.Pet.ActivityName == "laptop") _sawLaptop = true;
         if (_cursorStart >= 0)
         {
             var k = Math.Min(1, (now - _cursorStart) / _cursorDur);

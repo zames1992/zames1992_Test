@@ -148,6 +148,7 @@ public sealed class SettingsWindow : Window
 
         Section(T("System"));
         Check(T("Start with Windows"), StartupService.IsEnabled(), v => { s.StartWithWindows = v; StartupService.Set(v); });
+        Check(T("Hoodie in the desktop right-click menu"), s.DesktopMenu, v => { s.DesktopMenu = v; _host.ApplyDesktopMenu(); });
         _content.Children.Add(Ui.Text(T("Data location: ") + _host.Storage.Root, 12, dim: true));
         var sys = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
         sys.Children.Add(Btn(T("Open data folder"), () => _host.OpenDataFolder()));

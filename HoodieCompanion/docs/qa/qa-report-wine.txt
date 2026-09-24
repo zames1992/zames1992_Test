@@ -1,18 +1,18 @@
 Hoodie Companion — automated QA report
-Date: 2026-09-24 20:14:49
+Date: 2026-09-24 22:04:50
 OS: Microsoft Windows NT 10.0.19043.0  .NET: 8.0.31  64-bit: True
 Monitors: \\.\DISPLAY1:[0,0 1920x1080]:[0,0 1920x1080]:1.00
-Frame rate while active: avg 34.6 fps, max 62.4
-Calm CPU (Quiet, sitting): 4.43% of all cores
-Frame logic (simulation + scene update, excl. WPF render): 0.155 ms/frame
-Peak working set: 717 MB
-States seen: Activity, Airborne, Alert, Appearing, Emote, Grabbed, Hidden, Idle, Jumping, Landing, Leaving, ReceivingItem, Returning, Sitting, Turning, Walking
+Frame rate while active: avg 38.8 fps, max 62.1
+Calm CPU (Quiet, sitting): 4.12% of all cores
+Frame logic (simulation + scene update, excl. WPF render): 0.146 ms/frame
+Peak working set: 659 MB
+States seen: Activity, Airborne, Alert, Appearing, Climbing, Emote, Grabbed, Hidden, Idle, Jumping, Landing, Leaving, ReceivingItem, Returning, Sitting, Sleeping, Turning, Walking
 
 PASS  character appears after launch
 PASS  walks autonomously / on request
 PASS  grab by the hood starts
 PASS  held state while dragging
-PASS  release gives throw velocity (3082 px/s)
+PASS  release gives throw velocity (3169 px/s)
 PASS  lands after the throw
 PASS  still inside the world after the throw
 PASS  releasing the mouse button always drops Hoodie (no sticking)
@@ -26,46 +26,57 @@ PASS  reminder alert: Hoodie holds up the note + card
 PASS  Leave me alone: Hoodie exits and stays hidden
 PASS  Come back: Hoodie returns
 PASS  Quiet mode: sits calmly
-PASS  calm CPU usage is low (4.4% of all cores)
+PASS  calm CPU usage is low (4.1% of all cores)
+PASS  territory toolbar stays above the overlays (owned window)
+PASS  desktop right-click menu registered
+PASS  held by the hand: hangs from the hand (HangHandL)
+PASS  held by a foot: hangs upside down (tilt -164)
+PASS  dropped below the taskbar edge: grabs the edge (HangEdge)
+PASS  climbs back up onto the floor (no teleport)
+PASS  notes: kept note pinned to the desktop
+PASS  sleeps lying down
 PASS  no errors logged (0)
 
 RESULT: PASS
 
 Recent transitions:
-  Idle -> Appearing (appear)
-  Appearing -> Idle (appeared)
-  Idle -> Walking (walk)
-  Walking -> Idle (placed)
-  Idle -> Jumping (jump)
-  Jumping -> Airborne (takeoff)
-  Airborne -> Grabbed (grabbed)
-  Grabbed -> Airborne (thrown)
-  Airborne -> Landing (landed 1336 dip/s)
-  Landing -> Idle (recovered)
-  Idle -> Turning (turn)
-  Turning -> Walking (walk after turn)
-  Walking -> Grabbed (grabbed)
-  Grabbed -> Airborne (released)
-  Airborne -> Landing (landed 30 dip/s)
-  Landing -> Idle (recovered)
-  Idle -> Idle (placed)
-  Idle -> ReceivingItem (sequence)
-  ReceivingItem -> ReceivingItem (sequence)
   ReceivingItem -> Idle (sequence done)
-  Idle -> Sitting (sit)
-  Sitting -> Idle (stood up)
   Idle -> Activity (activity backpack)
   Activity -> Idle (activity done)
   Idle -> Activity (activity notes)
   Activity -> Idle (activity done)
-  Idle -> Activity (activity laptop)
+  Idle -> Emote (WeightShift)
+  Emote -> Activity (activity laptop)
   Activity -> Sitting (activity done)
-  Sitting -> Idle (stood up)
-  Idle -> Alert (Reminder)
+  Sitting -> Alert (Reminder)
   Alert -> Idle (alert acknowledged)
   Idle -> Emote (Success)
   Emote -> Leaving (leave me alone)
   Leaving -> Hidden (left the screen)
   Hidden -> Returning (come back)
   Returning -> Idle (returned)
+  Idle -> Emote (Listen)
+  Emote -> Sitting (sit)
+  Sitting -> Idle (placed)
+  Idle -> Grabbed (grabbed (HandLeft))
+  Grabbed -> Airborne (released)
+  Airborne -> Landing (landed 660 dip/s)
+  Landing -> Idle (recovered)
+  Idle -> Emote (Wave)
+  Emote -> Idle (placed)
+  Idle -> Turning (turn)
+  Turning -> Walking (walk after turn)
+  Walking -> Grabbed (grabbed (Foot))
+  Grabbed -> Airborne (released)
+  Airborne -> Landing (landed 791 dip/s)
+  Landing -> Idle (recovered)
+  Idle -> Idle (placed)
+  Idle -> Grabbed (grabbed (Hood))
+  Grabbed -> Airborne (released)
+  Airborne -> Climbing (caught the ledge)
+  Climbing -> Landing (climbed up)
+  Landing -> Idle (recovered)
+  Idle -> Activity (activity notes)
+  Activity -> Idle (placed)
   Idle -> Sitting (sit)
+  Sitting -> Sleeping (fall asleep)

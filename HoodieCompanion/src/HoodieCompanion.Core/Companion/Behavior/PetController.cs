@@ -21,6 +21,8 @@ public struct PetInput
     public AppPresenceMode ForegroundRule;
     /// <summary>Monitor holding the foreground window.</summary>
     public string? ForegroundMonitorId;
+    /// <summary>Local hour of day (0-23) for time-of-day moods; null = unknown.</summary>
+    public int? LocalHour;
 }
 
 /// <summary>What the renderer needs to draw one frame.</summary>
@@ -98,6 +100,9 @@ public sealed partial class PetController
         Settings = settings;
         Animation = new AnimationController(_rng);
         Brain = new BehaviorController(_rng);
+        Mind = new Mind(Drives);
+        Reactions = new ReactionSystem(_rng);
+        IdleDirector = new IdleDirector(_rng);
         Mode = settings.RestorePresenceOnStart ? settings.CurrentPresenceMode : settings.DefaultPresenceMode;
         _modeBeforeAlone = Mode == PresenceMode.Alone ? PresenceMode.Normal : Mode;
         var p = world.Primary.WorkArea;
@@ -114,6 +119,11 @@ public sealed partial class PetController
     public CharacterDrives Drives { get; } = new();
     public CursorInteractionService Cursor { get; } = new();
     public BehaviorController Brain { get; }
+    /// <summary>Hidden inner parameters (energy, mood, curiosity, boredom, sleepiness, stress, affection...).</summary>
+    public Mind Mind { get; }
+    /// <summary>Event → reaction table with priorities and cooldowns.</summary>
+    public ReactionSystem Reactions { get; }
+    public IdleDirector IdleDirector { get; }
     public PetPhysics Physics { get; } = new();
     public GrabController Grab { get; } = new();
     public ThrowController Thrower { get; } = new();
@@ -177,6 +187,10 @@ public sealed partial class PetController
         _userIdle = input.UserIdleSeconds;
         Machine.Tick(dt);
         Drives.Update(dt, Machine.State, _run && Machine.State == BehaviorState.Walking);
+        if (input.LocalHour is int hour) UpdateClock(hour);
+        var afkChange = Mind.Update(dt, Machine.State, input.UserIdleSeconds, Machine.State == BehaviorState.Walking);
+        if (afkChange is AfkPhase oldPhase) OnAfkPhaseChanged(oldPhase, Mind.Afk);
+        if (Machine.State == BehaviorState.Grabbed) Mind.OnHeldTick(dt, Grab.AngularVelocity);
         UpdateScale(dt);
 
         UpdatePresence(input);
@@ -199,7 +213,7 @@ public sealed partial class PetController
             case BehaviorState.ReceivingItem: UpdateSequence(); break;
             case BehaviorState.Activity: UpdateActivity(); break;
             case BehaviorState.Climbing: UpdateClimbing(dt); break;
-            case BehaviorState.Alert: break;
+            case BehaviorState.Alert: UpdateAlert(); break;
             case BehaviorState.Leaving: UpdateLeaving(dt); break;
             case BehaviorState.Hidden: UpdateHidden(); break;
             case BehaviorState.Returning: UpdateReturning(dt); break;
@@ -219,6 +233,7 @@ public sealed partial class PetController
         }
 
         var m = Metrics;
+        UpdateBodyMotion(dt);
         var ctx = new AnimContext
         {
             Time = _time,
@@ -235,9 +250,32 @@ public sealed partial class PetController
         var still = _lookWeight < 0.05 && Math.Abs(_tilt) < 0.01 && Machine.TimeInState > 0.4;
         var calm = Machine.State is BehaviorState.Sleeping or BehaviorState.Hidden
                    || (Machine.State is BehaviorState.Sitting && Animation.Current == AnimClip.SitIdle && still)
-                   || (Machine.State is BehaviorState.Idle && Animation.Current == AnimClip.IdleBreathing && still);
+                   || (Machine.State is BehaviorState.Idle && Animation.Current is AnimClip.IdleBreathing or AnimClip.IdleBreathing2 && still);
         return new RenderState(Transform, pose, Animation.Effect, Animation.EffectTime, Machine.State != BehaviorState.Hidden,
             Machine.State, Animation.Current, calm, CurrentMonitor, _monitorScale, CurrentProp);
+    }
+
+    // Secondary motion: the head, strings and sleeves lag behind the body when it speeds up or stops.
+    private Vec2 _lastBodyPos;
+    private double _bodyVelX;
+    private bool _hasBodyPos;
+
+    private void UpdateBodyMotion(double dt)
+    {
+        var pos = Machine.State is BehaviorState.Airborne ? Physics.Center : Machine.State is BehaviorState.Grabbed ? Grab.Pivot : Feet;
+        if (!_hasBodyPos || dt <= 0)
+        {
+            _lastBodyPos = pos;
+            _hasBodyPos = true;
+            return;
+        }
+        var v = (pos.X - _lastBodyPos.X) / dt / Math.Max(0.1, _monitorScale);
+        _lastBodyPos = pos;
+        if (Math.Abs(v) > 6000) v = 0; // teleports (respawn, placement) are not motion
+        var acc = (v - _bodyVelX) / dt;
+        _bodyVelX = v;
+        // In the rig's own frame (facing left = forward is -X).
+        Animation.SetBodyMotion(-Facing * acc, Machine.State is BehaviorState.Walking);
     }
 
     private void UpdateScale(double dt)

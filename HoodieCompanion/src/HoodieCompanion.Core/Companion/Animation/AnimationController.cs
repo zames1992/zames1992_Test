@@ -46,6 +46,26 @@ public sealed class AnimationController
         _lookWeight = MathUtil.Clamp01(weight);
     }
 
+    // Secondary motion springs (degrees): driven by body acceleration, they make the hood, strings and
+    // sleeves lag and overshoot, which gives the cut-out rig its "plastic" follow-through.
+    private double _accel;
+    private bool _walking;
+    private double _secHead, _secHeadV, _secArms, _secArmsV, _secStrings, _secStringsV;
+
+    /// <summary>Body acceleration along the facing axis (DIP/s², rig frame) for follow-through.</summary>
+    public void SetBodyMotion(double accelDip, bool walking)
+    {
+        _accel = Math.Clamp(accelDip, -6000, 6000);
+        _walking = walking;
+    }
+
+    private static void Spring(ref double x, ref double v, double target, double stiffness, double damping, double dt)
+    {
+        var a = (target - x) * stiffness - v * damping;
+        v += a * dt;
+        x += v * dt;
+    }
+
     public bool IsOnCooldown(AnimClip clip)
     {
         var info = AnimationCatalog.Get(clip);
@@ -124,6 +144,23 @@ public sealed class AnimationController
         {
             _blend = _blendDuration <= 0 ? 1 : Math.Min(1, _blend + dt / _blendDuration);
             pose = Pose.Lerp(_from, pose, MathUtil.SmoothStep(_blend));
+        }
+
+        // Follow-through: when the body accelerates forward the hood tips back and the sleeves trail,
+        // when it brakes they swing forward and settle with a small overshoot.
+        if (dt > 0)
+        {
+            var k = ReducedMotion ? 0.35 : 1.0;
+            var push = _accel / 1000.0 * k;
+            var sdt = Math.Min(dt, 1 / 30.0);
+            Spring(ref _secHead, ref _secHeadV, Math.Clamp(-push * 2.2, -6, 6), 90, 9, sdt);
+            Spring(ref _secArms, ref _secArmsV, Math.Clamp(push * 5, -14, 14), 70, 7, sdt);
+            Spring(ref _secStrings, ref _secStringsV, Math.Clamp(push * 7, -16, 16), 55, 5, sdt);
+            var w = info.AllowBreath || _walking ? 1.0 : 0.5;
+            pose.HeadRot = Math.Clamp(pose.HeadRot + _secHead * w, -20, 20);
+            pose.ArmLRot += _secArms * w;
+            pose.ArmRRot += _secArms * w;
+            pose.StringsRot += _secStrings * w;
         }
 
         _last = pose;

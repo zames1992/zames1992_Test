@@ -27,6 +27,7 @@ public sealed partial class PetController
     private Action? _afterTurn;
     private bool _turnFlipped;
     private bool _thrownByUser;
+    private bool _dizzyOnLanding;
     private bool _jumpToMonitor;
     private double _landingImpact;
     private double _slideVelocity;
@@ -122,6 +123,8 @@ public sealed partial class PetController
             if (!Territory.CanTraverse(new Vec2(nextX + dir * m.HalfWidthPx * 0.3, Feet.Y), m.HeightPx))
             {
                 StopWalk("territory");
+                // Bumps into the invisible wall, understands, turns back.
+                React(PetEvent.BoundaryHit);
                 return;
             }
             if (Territory.Anchor is { } a && Math.Abs(nextX - a.Center.X) > a.RadiusPx && Math.Abs(nextX - a.Center.X) > Math.Abs(Feet.X - a.Center.X))
@@ -213,8 +216,11 @@ public sealed partial class PetController
         var cb = _onArrive;
         _onArrive = null;
         _chase = false;
+        var wasRunning = Machine.State == BehaviorState.Walking && Animation.Current is AnimClip.Run or AnimClip.FollowCursor;
         Go(BehaviorState.Idle, "arrived", force: true);
-        Animation.Play(AnimClip.IdleBreathing);
+        Animation.Play(IdleDirector.BaseLoop);
+        // A run ends with a little skid and follow-through instead of a dead stop.
+        if (wasRunning && !Settings.ReducedMotion && PlayEmoteAt(AnimClip.Stop, cb, ReactionPriority.Idle)) return;
         cb?.Invoke();
     }
 
@@ -353,16 +359,70 @@ public sealed partial class PetController
     // ------------------------------------------------------------------ physical interaction
 
     /// <summary>User started dragging Hoodie. <paramref name="cursor"/> is in world pixels.</summary>
+    /// <summary>Which part of Hoodie the user is holding.</summary>
+    public enum GrabRegion
+    {
+        Hood,
+        HandLeft,
+        HandRight,
+        Foot,
+        Torso,
+    }
+
+    private GrabRegion _grabRegion;
+    private double _grabStartedAt;
+
+    public GrabRegion CurrentGrabRegion => _grabRegion;
+
+    /// <summary>Classifies a point in rest-pose reference pixels (facing left) into a grab region.</summary>
+    public static GrabRegion RegionAt(Vec2 local)
+    {
+        if (local.Y >= 650) return GrabRegion.Foot;
+        if (local.Y >= 420 && local.X < 178) return GrabRegion.HandLeft;
+        if (local.Y >= 420 && local.X > 372) return GrabRegion.HandRight;
+        if (local.Y >= 400) return GrabRegion.Torso;
+        return GrabRegion.Hood;
+    }
+
     public bool BeginGrab(Vec2 cursor)
     {
         if (!Settings.GrabThrow) return false;
         if (Machine.State is BehaviorState.Hidden or BehaviorState.Leaving or BehaviorState.Vanishing or BehaviorState.Appearing) return false;
         var t = Transform;
         var local = t.WorldToLocal(cursor);
-        // The hood is the natural handle. Grabbing lower keeps the finger offset but hangs from the chest.
-        var grabLocal = new Vec2(Math.Clamp(local.X, 150, 400), Math.Clamp(local.Y, 90, 400));
-        var pivot = t.LocalToWorld(grabLocal);
-        Grab.Begin(pivot, grabLocal, cursor, _tilt);
+        var wasAsleep = Machine.State == BehaviorState.Sleeping;
+        // Lying or sitting poses do not match the rest-pose regions; treat those grabs as a scruff of the hood.
+        var region = Machine.State is BehaviorState.Sleeping or BehaviorState.Sitting ? GrabRegion.Hood : RegionAt(local);
+        Vec2 grabLocal;
+        var keepOffset = true;
+        switch (region)
+        {
+            case GrabRegion.HandLeft:
+                grabLocal = ProceduralAnimator.HangAnchor(AnimClip.HangHandL);
+                keepOffset = false;
+                break;
+            case GrabRegion.HandRight:
+                grabLocal = ProceduralAnimator.HangAnchor(AnimClip.HangHandR);
+                keepOffset = false;
+                break;
+            case GrabRegion.Foot:
+                grabLocal = local.X < RigTransform.AxisX ? new Vec2(186, 800) : new Vec2(336, 806);
+                keepOffset = false;
+                break;
+            case GrabRegion.Torso:
+                grabLocal = new Vec2(Math.Clamp(local.X, 200, 344), 430);
+                break;
+            default:
+                // The hood is the natural handle. Grabbing lower keeps the finger offset.
+                grabLocal = new Vec2(Math.Clamp(local.X, 150, 400), Math.Clamp(local.Y, 90, 400));
+                break;
+        }
+        // The pivot starts where that point is drawn now, so nothing jumps; it then eases to the finger.
+        var pivot = t.LocalToWorld(region is GrabRegion.HandLeft or GrabRegion.HandRight ? ClosestRestHand(region) : grabLocal);
+        var rest = region == GrabRegion.Hood ? 0 : GrabController.RestAngleFor(grabLocal, Facing);
+        Grab.Begin(pivot, grabLocal, cursor, _tilt, rest, limitSwing: region is GrabRegion.Hood or GrabRegion.Torso, keepCursorOffset: keepOffset);
+        _grabRegion = region;
+        _grabStartedAt = _time;
         Thrower.Reset();
         Thrower.AddSample(_time, cursor);
         _anchorLocal = grabLocal;
@@ -372,11 +432,23 @@ public sealed partial class PetController
         _sequence.Clear();
         DropActivity();
         DropClimb();
-        Go(BehaviorState.Grabbed, "grabbed", force: true);
-        Animation.Play(AnimClip.GrabReaction, force: true, restart: true);
+        Go(BehaviorState.Grabbed, $"grabbed ({region})", force: true);
+        Animation.Play(wasAsleep ? AnimClip.WakeStartled : region == GrabRegion.Hood ? AnimClip.GrabReaction : HangClip(region), force: true, restart: true);
         Drives.OnUserAttention();
+        Mind.OnGrabbed(wasAsleep);
         return true;
     }
+
+    private static Vec2 ClosestRestHand(GrabRegion r) => r == GrabRegion.HandLeft ? new Vec2(140, 596) : new Vec2(412, 610);
+
+    private static AnimClip HangClip(GrabRegion r) => r switch
+    {
+        GrabRegion.HandLeft => AnimClip.HangHandL,
+        GrabRegion.HandRight => AnimClip.HangHandR,
+        GrabRegion.Foot => AnimClip.HangFoot,
+        GrabRegion.Torso => AnimClip.HangTorso,
+        _ => AnimClip.Grabbed,
+    };
 
     public void EndGrab(Vec2 cursor)
     {
@@ -392,6 +464,9 @@ public sealed partial class PetController
         _thrownByUser = true;
         _jumpToMonitor = false;
         _tiltVel = Grab.AngularVelocity * 0.5;
+        _tilt = GrabController.NormalizeDeg(_tilt);
+        _dizzyOnLanding = Grab.SwingEnergy > 1.2;
+        Mind.OnReleased(v.Length / m.MonitorScale, _time - _grabStartedAt);
         EnterAirborne(v.Length > m.Dip(300) ? "thrown" : "released");
         Animation.Play(v.Length > m.Dip(300) ? AnimClip.Thrown : AnimClip.Fall, force: true);
     }
@@ -405,8 +480,15 @@ public sealed partial class PetController
         _anchorWorld = Grab.Pivot;
         _tilt = Grab.Angle;
         _tiltVel = 0;
-        if (Animation.Current == AnimClip.GrabReaction && !Animation.IsFinished) return;
-        Animation.Play(Math.Abs(Grab.AngularVelocity) > 140 ? AnimClip.Swinging : AnimClip.Grabbed, force: true);
+        if (Animation.Current is AnimClip.GrabReaction or AnimClip.WakeStartled && !Animation.IsFinished) return;
+        var held = _time - _grabStartedAt;
+        var fast = Math.Abs(Grab.AngularVelocity) > 140;
+        AnimClip clip;
+        if (Mind.Stress > 0.75 && held > 1.5 && !fast) clip = AnimClip.Struggle;
+        else if (_grabRegion == GrabRegion.Hood) clip = fast ? AnimClip.Swinging : held > 5 && Mind.Affection > 0.45 && Grab.SwingEnergy < 0.2 ? AnimClip.RelaxedCarry : AnimClip.Grabbed;
+        else if (_grabRegion == GrabRegion.Torso && held > 5 && Grab.SwingEnergy < 0.2 && Mind.Affection > 0.45) clip = AnimClip.RelaxedCarry;
+        else clip = HangClip(_grabRegion);
+        Animation.Play(clip, force: true);
     }
 
     private void EnterAirborne(string reason)
@@ -421,6 +503,7 @@ public sealed partial class PetController
     private void UpdateAirborne(double dt)
     {
         var m = Metrics;
+        if (TryCatchLedge(m)) return;
         var landing = Physics.Step(dt, World, m);
         _anchorLocal = BodyMetrics.CenterLocal;
         _anchorWorld = Physics.Center;
@@ -455,15 +538,22 @@ public sealed partial class PetController
 
     private void Land(LandingInfo l, BodyMetrics m)
     {
-        Feet = new Vec2(Physics.Center.X, Physics.Center.Y + m.FeetOffsetPx);
+        // Continuity: the feet stay exactly where they are drawn (with the current tilt), the body then
+        // rotates upright around them. Only the height snaps to the floor (a few pixels at most).
+        var visualFeet = Transform.LocalToWorld(BodyMetrics.RootLocal);
+        var floorY = Physics.Center.Y + m.FeetOffsetPx;
+        var mon = World.MonitorAt(new Vec2(Physics.Center.X, floorY)) ?? World.NearestMonitor(new Vec2(Physics.Center.X, floorY));
+        var half = m.HalfWidthPx * 0.5;
+        var fx = Math.Clamp(visualFeet.X, mon.WorkArea.Left + half, mon.WorkArea.Right - half);
+        Feet = new Vec2(fx, floorY);
         _anchorLocal = BodyMetrics.RootLocal;
         _anchorWorld = Feet;
-        // Keep the visual tilt but let it settle around the feet.
-        _tilt = Math.Clamp(_tilt, -25, 25);
+        _tilt = Math.Clamp(GrabController.NormalizeDeg(_tilt), -50, 50);
         _landingImpact = l.ImpactDipPerSec;
         _slideVelocity = l.HorizontalDipPerSec * 0.45 * _monitorScale;
         Go(BehaviorState.Landing, $"landed {l.ImpactDipPerSec:0} dip/s", force: true);
         var hard = _thrownByUser && l.ImpactDipPerSec >= HardLandingDip;
+        Mind.OnLanded(hard);
         if (hard)
         {
             Drives.OnHardLanding();
@@ -493,9 +583,13 @@ public sealed partial class PetController
         }
 
         if (!Animation.IsFinished) return;
-        if (Animation.Current == AnimClip.LandHard)
+        if (Animation.Current == AnimClip.LandHard || _dizzyOnLanding)
         {
-            var steps = new List<(AnimClip, double?)> { (AnimClip.Recover, null), (AnimClip.RecoverFromThrow, null) };
+            var steps = new List<(AnimClip, double?)>();
+            if (Animation.Current == AnimClip.LandHard) steps.Add((AnimClip.Recover, null));
+            if (_dizzyOnLanding) steps.Add((AnimClip.Dizzy, null));
+            steps.Add((AnimClip.RecoverFromThrow, null));
+            _dizzyOnLanding = false;
             RunSequence(BehaviorState.Recovering, steps, AfterLanding);
             return;
         }

@@ -51,6 +51,8 @@ public sealed class AppSettings
     /// <summary>"auto" (Windows display language), "en" or "ru".</summary>
     public string Language { get; set; } = "auto";
     public bool StartWithWindows { get; set; }
+    /// <summary>Adds a "Hoodie" submenu to the desktop's right-click menu (Come here, Set Home here...).</summary>
+    public bool DesktopMenu { get; set; } = true;
     public bool FirstRunDone { get; set; }
 
     public SavedPosition? LastPosition { get; set; }

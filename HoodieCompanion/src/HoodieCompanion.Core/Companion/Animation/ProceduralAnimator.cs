@@ -22,7 +22,7 @@ public struct AnimContext
 /// Pure functions that turn (clip, clip time, context) into a rig pose.
 /// Everything here is deterministic and allocation free.
 /// </summary>
-public static class ProceduralAnimator
+public static partial class ProceduralAnimator
 {
     /// <summary>Walk stride per cycle in reference pixels (two steps). Must match the leg swing amplitude.</summary>
     public const double LegLength = 200;
@@ -68,7 +68,10 @@ public static class ProceduralAnimator
                 p.ArmLRot = -a * 0.55 * s;
                 p.ArmRRot = a * 0.55 * s;
                 p.StringsRot = (run ? 6 : 3) * Math.Sin(tau * ctx.WalkPhase * 2);
-                p.HeadRot = 1.5 * Math.Sin(tau * ctx.WalkPhase * 2);
+                // Hips carry the step: the pelvis sways and the torso counter-rotates, the head stays calm.
+                p.TorsoRot = -(run ? 2.5 : 1.8) * s;
+                p.RootDx = (run ? 3 : 2) * s;
+                p.HeadRot = 1.5 * Math.Sin(tau * ctx.WalkPhase * 2) + (run ? 1.5 : 1) * s;
                 p.TorsoDy = 2 * Math.Abs(s);
                 p.ShadowScale = 1 - 0.04 * Math.Abs(c);
                 break;
@@ -705,6 +708,10 @@ public static class ProceduralAnimator
                 fx = air > 0.3 ? PoseEffect.Sparkle : PoseEffect.None;
                 break;
             }
+
+            default:
+                fx = EvaluateLibrary(clip, t, u, ctx, ref p);
+                break;
         }
 
         if (ctx.ReducedMotion)

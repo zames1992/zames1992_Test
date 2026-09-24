@@ -36,6 +36,85 @@ public sealed partial class PetController
     }
 
     private ClimbPlan? _climb;
+
+    /// <summary>Hanging from a ledge (the top of the taskbar) and pulling itself up.</summary>
+    private sealed class LedgePlan
+    {
+        public required double X;
+        public required double EdgeY;
+        public double HangFor;
+        public int Phase;      // 0 hang, 1 climb up
+    }
+
+    private LedgePlan? _ledge;
+
+    public bool IsHangingOnLedge => _ledge is not null;
+
+    private double LedgeDepthPx => ProceduralAnimator.HangEdgeDepth * Metrics.RefToPx;
+
+    /// <summary>
+    /// Released / falling below a floor inside a monitor (over the taskbar) with nothing below: instead of
+    /// dropping out of the world, Hoodie grabs the edge of the floor above and climbs up.
+    /// </summary>
+    private bool TryCatchLedge(BodyMetrics m)
+    {
+        var c = Physics.Center;
+        if (Physics.Velocity.Y < -m.Dip(50)) return false;
+        var feetY = c.Y + m.FeetOffsetPx;
+        MonitorInfo? mon = null;
+        foreach (var mm in World.Monitors)
+        {
+            if (!mm.Bounds.Inflate(0, m.HeightPx).Contains(c) || !mm.WorkArea.ContainsX(c.X)) continue;
+            mon = mm;
+            break;
+        }
+        if (mon is null) return false;
+        var edge = mon.WorkArea.Bottom;
+        // Only when the body is already (mostly) below that floor and there is no other floor to fall onto.
+        if (c.Y < edge - m.Dip(4)) return false;
+        if (World.FloorBelow(c.X, feetY - 1) is not null) return false;
+        StartLedgeHang(c.X, edge, fromAir: true);
+        return true;
+    }
+
+    private void StartLedgeHang(double x, double edgeY, bool fromAir)
+    {
+        var mon = World.NearestMonitor(new Vec2(x, edgeY - 2));
+        var half = Metrics.HalfWidthPx * 0.5;
+        x = Math.Clamp(x, mon.WorkArea.Left + half, mon.WorkArea.Right - half);
+        _ledge = new LedgePlan { X = x, EdgeY = edgeY, HangFor = 0.9 + _rng.NextDouble() * 0.8 };
+        _climb = null;
+        Feet = new Vec2(x, edgeY + LedgeDepthPx);
+        _anchorLocal = BodyMetrics.RootLocal;
+        _anchorWorld = Feet;
+        _thrownByUser = false;
+        _dizzyOnLanding = false;
+        Go(BehaviorState.Climbing, fromAir ? "caught the ledge" : "hanging on the ledge", force: true);
+        Animation.Play(AnimClip.HangEdge, force: true, restart: true);
+    }
+
+    private void UpdateLedge()
+    {
+        var l = _ledge!;
+        if (l.Phase == 0)
+        {
+            Feet = new Vec2(l.X, l.EdgeY + LedgeDepthPx);
+            if (Machine.TimeInState < l.HangFor) return;
+            l.Phase = 1;
+            Animation.Play(AnimClip.ClimbEdge, force: true, restart: true);
+            return;
+        }
+        var u = Math.Clamp(Animation.ClipTime / AnimationCatalog.Get(AnimClip.ClimbEdge).Duration, 0, 1);
+        Feet = new Vec2(l.X, l.EdgeY + LedgeDepthPx * ProceduralAnimator.ClimbEdgeDepth(u));
+        if (!Animation.IsFinished) return;
+        Feet = new Vec2(l.X, l.EdgeY);
+        _ledge = null;
+        Go(BehaviorState.Landing, "climbed up", force: true);
+        _landingImpact = 0;
+        _slideVelocity = 0;
+        Mind.OnSmallWin();
+        Animation.Play(AnimClip.RecoverFromThrow, force: true, restart: true);
+    }
     private WorldProp? _fadingProp;
     private double _fadeStart;
 
@@ -117,6 +196,11 @@ public sealed partial class PetController
 
     private void UpdateClimbing(double dt)
     {
+        if (_ledge is not null)
+        {
+            UpdateLedge();
+            return;
+        }
         var c = _climb;
         if (c is null)
         {
@@ -173,5 +257,6 @@ public sealed partial class PetController
             _fadeStart = _time;
         }
         _climb = null;
+        _ledge = null;
     }
 }

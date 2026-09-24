@@ -22,4 +22,20 @@ public enum AnimClip
     PlaceLadder, ClimbLadder, TieRope, ClimbRope,
     // Accessories & activities
     CloseBackpack, LaptopOpen, LaptopType, LaptopClose, ReadBook, WriteNotes, Dance, JumpForJoy,
+    // v1.2 library
+    IdleBreathing2, LookLeft, LookRight, LookUp, LookDown, HeadTilt, WeightShift, StretchBody, Scratch, InspectSelf,
+    Listen, NoticeMovement, WatchWindow,
+    SitEdge, ChinRest, PickSurface, Sigh, CountFingers, StareVoid, LieDown, LieIdle,
+    Spin, CatchCursor,
+    Stop, Slip, Balance,
+    PeekIn, HangEdge, ClimbEdge,
+    ReachCursor, Dodge, Annoyed, Happy, SearchCursor,
+    HangHandL, HangHandR, HangFoot, HangTorso, Struggle, RelaxedCarry, Dizzy,
+    CheckResult, CarryLoad, CatchPackage,
+    Knock, Point, ThumbsUp, Proud,
+    Confused, Frustrated, Facepalm,
+    Excited, Suspicious, Scared, Embarrassed, Sad, Angry,
+    SleepLying, DreamTwitch, WakeFromLying, WakeStartled,
+    BackpackHeavy, TearPage,
+    CheckTime, Shiver, BoundaryBump,
 }

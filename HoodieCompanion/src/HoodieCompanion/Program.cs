@@ -35,7 +35,15 @@ public static class Program
         }
 
         // Single instance: a second launch asks the running Hoodie to come forward and exits.
+        // "--cmd name" (desktop right-click menu) forwards a command with the pointer position instead.
+        var cmd = Arg(args, "--cmd");
+        var at = MouseService.Cursor();
         using var mutex = new Mutex(true, MutexName, out var first);
+        if (!first && cmd is not null)
+        {
+            CommandChannel.Send(cmd, at.X, at.Y);
+            return 0;
+        }
         if (!first)
         {
             try
@@ -89,6 +97,7 @@ public static class Program
         app.Startup += (_, _) =>
         {
             host.Start();
+            if (cmd is not null) host.DesktopCommand(cmd, at.X, at.Y);
             var qa = qaDir;
             if (qa is not null) new QaRunner(host, qa, args.Contains("--qa-keep")).Start();
         };

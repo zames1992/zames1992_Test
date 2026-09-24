@@ -36,7 +36,8 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 * The shell icon of a `.lnk` is shown, but the shortcut target is not resolved for display.
 * Territory regions are stored relative to their monitor's working area; if a monitor is disconnected its
   regions are kept but ignored until it returns.
-* The first-run welcome card and all UI text are English only.
+* The desktop right-click entry is a classic shell verb: on Windows 11 it is under "Show more options" (or Shift+F10).
+* App search lists what Windows shows in Start (the Apps folder); if that cannot be read it falls back to Start-menu shortcuts.
 
 ## Fixed after the first user test (v1.1)
 
@@ -48,6 +49,15 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 * The Backpack page closed when you switched to Explorer to drag files → working pages no longer auto-close, and the
   panel itself accepts drops.
 * Monitors above/below: jump + teleport replaced by ladder / rope climbing.
+
+## Fixed after the second user test (v1.2)
+
+* Recycle Bin (and other shell objects) could not be put in the Backpack; folders opened slowly; no image previews; apps
+  such as Calculator could not be added; slots could not be arranged.
+* Sitting / walking showed no pelvis ("cut plates"); sleeping upright looked eerie → lies down.
+* After a throw Hoodie jumped sideways on landing; grabbing always hung it from the hood; dropping it below the taskbar
+  made it vanish and respawn.
+* Territory editor: after choosing a tool the others were covered until Esc; the area names were unclear.
 
 ## Visual
 

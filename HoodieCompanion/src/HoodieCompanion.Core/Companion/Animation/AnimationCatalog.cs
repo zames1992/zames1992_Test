@@ -17,17 +17,77 @@ public sealed record ClipInfo(
     double BlendIn = 0.2,
     bool AllowLook = true,
     bool AllowBlink = true,
-    bool AllowBreath = true);
+    bool AllowBreath = true,
+    string Rarity = "Contextual");
 
 public static class AnimationCatalog
 {
     public const int PhysicalPriority = 100;
 
-    private static readonly Dictionary<AnimClip, ClipInfo> Table = Build().ToDictionary(c => c.Clip);
+    private static readonly Dictionary<AnimClip, ClipInfo> Table = Build().Concat(BuildLibrary())
+        .Select(c => c with { Category = StateOf(c.Clip), Rarity = RarityOf(c.Clip) })
+        .ToDictionary(c => c.Clip);
+
+    /// <summary>Behaviour state group each clip belongs to (the animation state machine's top level).</summary>
+    public static string StateOf(AnimClip c) => c switch
+    {
+        AnimClip.IdleBreathing or AnimClip.IdleBreathing2 or AnimClip.Blink or AnimClip.LookLeft or AnimClip.LookRight or AnimClip.LookUp
+            or AnimClip.LookDown or AnimClip.HeadTilt or AnimClip.WeightShift or AnimClip.Stretch or AnimClip.StretchBody
+            or AnimClip.Scratch or AnimClip.Yawn or AnimClip.InspectSelf => "Idle basic",
+        AnimClip.LookCursor or AnimClip.Curious or AnimClip.Listen or AnimClip.NoticeMovement or AnimClip.PeekEdge or AnimClip.WatchWindow => "Idle curious",
+        AnimClip.SitDown or AnimClip.SitIdle or AnimClip.StandUp or AnimClip.SitEdge or AnimClip.ChinRest or AnimClip.PickSurface
+            or AnimClip.Sigh or AnimClip.CountFingers or AnimClip.StareVoid or AnimClip.LieDown or AnimClip.LieIdle => "Idle bored",
+        AnimClip.Dance or AnimClip.JumpForJoy or AnimClip.Spin or AnimClip.CatchCursor => "Idle playful",
+        AnimClip.Walk or AnimClip.Run or AnimClip.FollowCursor or AnimClip.Stop or AnimClip.Turn or AnimClip.Jump or AnimClip.Airborne
+            or AnimClip.Fall or AnimClip.LandSoft or AnimClip.LandHard or AnimClip.Recover or AnimClip.Slip or AnimClip.Balance => "Movement",
+        AnimClip.JumpMonitor or AnimClip.LandMonitor or AnimClip.LeaveScreen or AnimClip.ReturnToScreen or AnimClip.PeekIn
+            or AnimClip.PlaceLadder or AnimClip.ClimbLadder or AnimClip.TieRope or AnimClip.ClimbRope or AnimClip.HangEdge or AnimClip.ClimbEdge => "Screen traversal",
+        AnimClip.Wave or AnimClip.Surprised or AnimClip.ReachCursor or AnimClip.Dodge or AnimClip.Annoyed or AnimClip.Happy or AnimClip.SearchCursor => "Cursor interaction",
+        AnimClip.GrabReaction or AnimClip.Grabbed or AnimClip.HangHandL or AnimClip.HangHandR or AnimClip.HangFoot or AnimClip.HangTorso
+            or AnimClip.Swinging or AnimClip.Struggle or AnimClip.RelaxedCarry or AnimClip.Thrown or AnimClip.RecoverFromThrow or AnimClip.Dizzy => "Drag interaction",
+        AnimClip.WriteNotes or AnimClip.Thinking or AnimClip.ReadBook or AnimClip.LaptopOpen or AnimClip.LaptopType or AnimClip.LaptopClose or AnimClip.CheckResult => "Work states",
+        AnimClip.PCBusy or AnimClip.CarryLoad or AnimClip.PCIdle => "PC load",
+        AnimClip.DownloadWatching or AnimClip.CatchPackage => "Download/process",
+        AnimClip.ReminderAlert or AnimClip.TimerAlert or AnimClip.Knock or AnimClip.Point => "Notification",
+        AnimClip.Success or AnimClip.ThumbsUp or AnimClip.Proud => "Success",
+        AnimClip.Error or AnimClip.Confused or AnimClip.Frustrated or AnimClip.Facepalm => "Failure",
+        AnimClip.Excited or AnimClip.Suspicious or AnimClip.Scared or AnimClip.Embarrassed or AnimClip.Sad or AnimClip.Angry => "Emotions",
+        AnimClip.SleepStart or AnimClip.SleepLoop or AnimClip.WakeUp or AnimClip.SleepLying or AnimClip.DreamTwitch
+            or AnimClip.WakeFromLying or AnimClip.WakeStartled => "Sleep/AFK",
+        AnimClip.NoticeItem or AnimClip.CatchItem or AnimClip.InspectItem or AnimClip.PutInBackpack or AnimClip.OpenBackpack
+            or AnimClip.SearchBackpack or AnimClip.CloseBackpack or AnimClip.PresentItem or AnimClip.MissingItem
+            or AnimClip.BackpackHeavy or AnimClip.TearPage => "Inventory",
+        AnimClip.CheckTime or AnimClip.Shiver => "Environment",
+        AnimClip.BoundaryBump => "Boundaries",
+        _ => "Other",
+    };
+
+    /// <summary>
+    /// How often an idle clip may appear: Frequent (seconds), Occasional (tens of seconds), Rare (minutes),
+    /// Contextual (only in response to an event or activity).
+    /// </summary>
+    /// <summary>Idle-director tier (matches IdleDirector's lists); everything else only plays on events.</summary>
+    public static string RarityOf(AnimClip c) => c switch
+    {
+        AnimClip.Blink or AnimClip.IdleBreathing or AnimClip.IdleBreathing2 or AnimClip.LookCursor or AnimClip.LookLeft or AnimClip.LookRight
+            or AnimClip.LookUp or AnimClip.LookDown or AnimClip.HeadTilt or AnimClip.WeightShift => "Frequent",
+        AnimClip.Scratch or AnimClip.StretchBody or AnimClip.InspectSelf or AnimClip.Listen or AnimClip.Sigh or AnimClip.StareVoid
+            or AnimClip.Yawn or AnimClip.Stretch or AnimClip.WatchWindow or AnimClip.ChinRest or AnimClip.PickSurface => "Occasional",
+        AnimClip.Spin or AnimClip.Dance or AnimClip.CatchCursor or AnimClip.Balance or AnimClip.CountFingers or AnimClip.Proud
+            or AnimClip.PeekIn or AnimClip.DreamTwitch => "Rare",
+        _ => "Contextual",
+    };
 
     public static ClipInfo Get(AnimClip clip) => Table[clip];
 
     public static IReadOnlyCollection<ClipInfo> All => Table.Values;
+
+    public static readonly string[] StateOrder =
+    {
+        "Idle basic", "Idle curious", "Idle bored", "Idle playful", "Movement", "Screen traversal", "Cursor interaction",
+        "Drag interaction", "Work states", "PC load", "Download/process", "Notification", "Success", "Failure", "Emotions",
+        "Sleep/AFK", "Inventory", "Environment", "Boundaries", "Other",
+    };
 
     private static IEnumerable<ClipInfo> Build()
     {
@@ -104,6 +164,99 @@ public static class AnimationCatalog
         yield return new(AnimClip.JumpForJoy, "Accessories", "Jumps for joy.", "Success, greeting in Play mode", "Utility / drive", false, 0.8, 25, true, 8, "Crouch", "Idle", 0.08);
     }
 
+    private static IEnumerable<ClipInfo> BuildLibrary()
+    {
+        ClipInfo C(AnimClip c, string meaning, string trigger, string cause, bool loop, double dur, int prio, bool intr, double cd,
+            string entry = "Blend", string exit = "Blend", double blend = 0.2, bool look = true, bool blink = true, bool breath = true) =>
+            new(c, "", meaning, trigger, cause, loop, dur, prio, intr, cd, entry, exit, blend, look, blink, breath);
+
+        // Idle basic
+        yield return C(AnimClip.IdleBreathing2, "Relaxed stance, weight on one leg.", "Idle base loop variant", "Idle director", true, 0, 10, true, 0);
+        yield return C(AnimClip.LookLeft, "Glances to one side.", "Idle gesture", "Idle director", false, 1.6, 12, true, 6);
+        yield return C(AnimClip.LookRight, "Glances to the other side.", "Idle gesture", "Idle director", false, 1.6, 12, true, 6);
+        yield return C(AnimClip.LookUp, "Looks up at the screen above.", "Idle gesture", "Idle director", false, 1.8, 12, true, 8);
+        yield return C(AnimClip.LookDown, "Looks at its feet.", "Idle gesture", "Idle director", false, 1.6, 12, true, 8);
+        yield return C(AnimClip.HeadTilt, "Tilts its head, thinking about something.", "Idle gesture", "Idle director", false, 1.8, 12, true, 8);
+        yield return C(AnimClip.WeightShift, "Shifts its weight from foot to foot.", "Idle gesture", "Idle director", false, 1.6, 12, true, 6);
+        yield return C(AnimClip.StretchBody, "Leans back and stretches the whole body.", "Rare idle", "Idle director / morning", false, 1.5, 20, true, 60);
+        yield return C(AnimClip.Scratch, "Scratches its hood.", "Rare idle", "Idle director", false, 1.4, 20, true, 50);
+        yield return C(AnimClip.InspectSelf, "Looks at its hands and sleeves.", "Rare idle", "Idle director", false, 2.0, 20, true, 70);
+        // Idle curious
+        yield return C(AnimClip.Listen, "Listens to something only it can hear.", "Idle gesture", "Idle director", false, 2.0, 15, true, 30);
+        yield return C(AnimClip.NoticeMovement, "Something moved! A quick glance.", "Window moved / big cursor move", "Desktop events", false, 0.8, 18, true, 10, blend: 0.08);
+        yield return C(AnimClip.WatchWindow, "Watches you work on the active window.", "User typing / Company mode", "User activity", false, 3.0, 15, true, 20);
+        // Idle bored
+        yield return C(AnimClip.SitEdge, "Sits on an edge and swings its legs.", "Bored / at an edge", "Idle director", true, 0, 12, true, 0, "Sit on edge", "Hop down", 0.3);
+        yield return C(AnimClip.ChinRest, "Rests its chin on a hand, bored.", "Sitting + boredom", "Mind: boredom", false, 3.5, 12, true, 20);
+        yield return C(AnimClip.PickSurface, "Pokes at the floor.", "Sitting + boredom", "Mind: boredom", false, 2.6, 12, true, 25);
+        yield return C(AnimClip.Sigh, "A long sigh.", "Boredom", "Mind: boredom", false, 1.6, 15, true, 60);
+        yield return C(AnimClip.CountFingers, "Counts something on its fingers.", "Boredom", "Mind: boredom", false, 2.4, 15, true, 80);
+        yield return C(AnimClip.StareVoid, "Stares into nothing.", "Very bored / AFK", "Mind: boredom", false, 4.0, 12, true, 40);
+        yield return C(AnimClip.LieDown, "Lies down on the floor.", "Sleepy / very bored", "Mind: sleepiness", false, 1.1, 15, false, 0, "Sit or stand", "LieIdle / SleepLying", 0.25);
+        yield return C(AnimClip.LieIdle, "Lies on its back, looking at the sky, kicking a foot.", "Bored, lying", "Mind: boredom", true, 0, 12, true, 0, blend: 0.3);
+        // Idle playful
+        yield return C(AnimClip.Spin, "Twirls around once.", "Playful", "Mind: playfulness", false, 0.9, 20, true, 25, blend: 0.08);
+        yield return C(AnimClip.CatchCursor, "Jumps to swipe at your cursor.", "Play mode, cursor close above", "Cursor", false, 0.9, 25, true, 6, blend: 0.08);
+        // Movement
+        yield return C(AnimClip.Stop, "Stops with a little skid and overshoot.", "End of a fast walk/run", "Behaviour", false, 0.35, 35, true, 0, blend: 0.08);
+        yield return C(AnimClip.Slip, "Slips, flails, recovers.", "Rare while running", "Physics flavour", false, 1.0, 45, false, 90, blend: 0.06);
+        yield return C(AnimClip.Balance, "Balances on a narrow edge.", "At a platform edge", "Platforms", false, 1.8, 20, true, 30);
+        // Screen traversal
+        yield return C(AnimClip.PeekIn, "Peeks in from the edge of the screen before coming in.", "Come back", "Presence", false, 1.2, 70, false, 0, blend: 0.1);
+        yield return C(AnimClip.HangEdge, "Hangs from an edge by its hands, legs kicking.", "Dropped below the taskbar edge", "Physics", true, 0, 90, false, 0, blend: 0.08, breath: false);
+        yield return C(AnimClip.ClimbEdge, "Pulls itself up over the edge.", "After HangEdge", "Physics", false, 0.9, 90, false, 0, blend: 0.1, breath: false);
+        // Cursor interaction
+        yield return C(AnimClip.ReachCursor, "Stands on tiptoes and reaches for your cursor.", "Cursor just above", "Cursor", false, 1.4, 22, true, 15);
+        yield return C(AnimClip.Dodge, "Dodges out of the way.", "Cursor rushes at it (Quiet/Focus: instead of Surprised)", "Cursor", false, 0.6, 30, true, 8, blend: 0.06);
+        yield return C(AnimClip.Annoyed, "Crosses its arms and taps its foot - enough poking.", "Poked / clicked many times", "Mind: stress", false, 1.8, 30, true, 20);
+        yield return C(AnimClip.Happy, "Happy wiggle - it likes the attention.", "Gentle attention", "Mind: affection", false, 1.2, 25, true, 10);
+        yield return C(AnimClip.SearchCursor, "Looks around for the cursor it lost.", "Cursor disappeared far away", "Cursor", false, 2.0, 15, true, 30);
+        // Drag interaction
+        yield return C(AnimClip.HangHandL, "Held by the hand: the arm reaches up, the body hangs from it.", "Grabbed by a hand", "Direct manipulation", true, 0, 100, false, 0, blend: 0.1, breath: false);
+        yield return C(AnimClip.HangHandR, "Held by the other hand.", "Grabbed by a hand", "Direct manipulation", true, 0, 100, false, 0, blend: 0.1, breath: false);
+        yield return C(AnimClip.HangFoot, "Held by a foot: upside down, arms and hood dangling.", "Grabbed by a leg", "Direct manipulation", true, 0, 100, false, 0, blend: 0.1, breath: false);
+        yield return C(AnimClip.HangTorso, "Held by the body: arms and legs dangle.", "Grabbed by the torso", "Direct manipulation", true, 0, 100, false, 0, blend: 0.1, breath: false);
+        yield return C(AnimClip.Struggle, "Wriggles to get free.", "Held for long / swung hard", "Mind: stress", true, 0, 100, false, 0, blend: 0.1, breath: false);
+        yield return C(AnimClip.RelaxedCarry, "Relaxes and lets itself be carried.", "Held gently for a while", "Mind: affection", true, 0, 100, false, 0, blend: 0.3, breath: false);
+        yield return C(AnimClip.Dizzy, "Dizzy after a wild ride: wobbles, stars circle its head.", "Landing after heavy swinging", "Physics + mind", false, 2.2, 75, false, 0, blend: 0.1);
+        // Work
+        yield return C(AnimClip.CheckResult, "Nods at the result.", "Work finished", "Utility", false, 1.0, 25, true, 5);
+        // PC load
+        yield return C(AnimClip.CarryLoad, "Hauls a heavy crate: the computer is doing heavy lifting.", "CPU busy for a while", "System monitor", true, 0, 25, true, 0, "Lift crate", "Put down", 0.2);
+        // Download
+        yield return C(AnimClip.CatchPackage, "Catches a parcel of data falling from above.", "Download in progress", "System monitor (network)", false, 0.9, 25, true, 4, blend: 0.1);
+        // Notification
+        yield return C(AnimClip.Knock, "Knocks on the glass to get your attention.", "Reminder / timer not acknowledged", "Reminders", false, 1.2, 80, true, 6);
+        yield return C(AnimClip.Point, "Points at something.", "Show where something is", "Utility", false, 1.4, 25, true, 5);
+        // Success
+        yield return C(AnimClip.ThumbsUp, "Raises a fist: well done!", "Something completed", "Utility", false, 1.1, 25, true, 5);
+        yield return C(AnimClip.Proud, "Puffs up, proud of itself.", "Task done / praised", "Mind: mood", false, 1.6, 25, true, 20);
+        // Failure
+        yield return C(AnimClip.Confused, "Confused: head tilts, scratches its hood.", "Unexpected result", "Utility", false, 1.8, 25, true, 8);
+        yield return C(AnimClip.Frustrated, "Stomps its foot.", "Repeated failure", "Mind: stress", false, 1.3, 25, true, 20);
+        yield return C(AnimClip.Facepalm, "Facepalm.", "Silly mistake", "Utility", false, 1.5, 25, true, 20);
+        // Emotions
+        yield return C(AnimClip.Excited, "Bouncing with excitement.", "Something fun", "Mind: mood", false, 1.6, 25, true, 15);
+        yield return C(AnimClip.Suspicious, "Squints suspiciously.", "Odd behaviour of the cursor", "Mind", false, 1.8, 20, true, 25);
+        yield return C(AnimClip.Scared, "Cowers, arms over its hood.", "Very rough treatment", "Mind: stress", false, 1.5, 40, true, 10, blend: 0.08);
+        yield return C(AnimClip.Embarrassed, "Hides its face in its sleeves.", "Caught doing something silly", "Mind", false, 1.6, 25, true, 30);
+        yield return C(AnimClip.Sad, "Sad, head down.", "Low mood", "Mind: mood", false, 2.2, 20, true, 60);
+        yield return C(AnimClip.Angry, "Angry, fists down, trembling.", "Stress peaks", "Mind: stress", false, 1.6, 30, true, 30);
+        // Sleep
+        yield return C(AnimClip.SleepLying, "Sleeps lying down, curled up.", "Asleep", "Mind: sleepiness / AFK", true, 0, 12, true, 0, blend: 0.4, look: false, blink: false, breath: false);
+        yield return C(AnimClip.DreamTwitch, "Twitches in its sleep - dreaming.", "Asleep for a while", "Sleep", false, 0.8, 13, true, 20, look: false, blink: false, breath: false);
+        yield return C(AnimClip.WakeFromLying, "Wakes gently, sits up and stretches.", "User returns / rested", "Mind", false, 1.4, 30, false, 0, blend: 0.2, blink: false);
+        yield return C(AnimClip.WakeStartled, "Wakes with a start and jumps up.", "Poked or grabbed while asleep", "Direct input", false, 0.8, 40, false, 0, blend: 0.05);
+        // Inventory
+        yield return C(AnimClip.BackpackHeavy, "The backpack is heavy - hauls it round with effort.", "Many items in the backpack", "Inventory", false, 1.6, 55, true, 60);
+        yield return C(AnimClip.TearPage, "Tears out the page, crumples it and tosses it away.", "Note abandoned / cleared", "Notes", false, 1.7, 60, false, 0, blend: 0.1);
+        // Environment
+        yield return C(AnimClip.CheckTime, "Looks at its wrist as if checking the time.", "Timer running / on the hour", "Clock", false, 1.6, 15, true, 120);
+        yield return C(AnimClip.Shiver, "Shivers - it is late and chilly.", "Night hours", "Clock", false, 1.4, 15, true, 300);
+        // Boundaries
+        yield return C(AnimClip.BoundaryBump, "Bumps into an invisible wall, understands, turns back.", "Walking into a Never-enter area", "Territory", false, 1.1, 45, false, 5, blend: 0.06);
+    }
+
     /// <summary>Renders the catalog as Markdown (used to produce ANIMATION_CATALOG.md).</summary>
     public static string ToMarkdown()
     {
@@ -113,17 +266,19 @@ public static class AnimationCatalog
         sb.AppendLine("Generated from `AnimationCatalog.cs` (the table the runtime uses). All clips are procedural poses of the cutout rig");
         sb.AppendLine("in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb count and clothing can never drift.");
         sb.AppendLine();
-        foreach (var group in All.GroupBy(c => c.Category))
+        sb.AppendLine($"**{All.Count} clips** in {All.Select(c => c.Category).Distinct().Count()} behaviour states. See PLAN.md for the state machine, the event→reaction system and the idle director.");
+        sb.AppendLine();
+        foreach (var group in All.GroupBy(c => c.Category).OrderBy(g => Array.IndexOf(StateOrder, g.Key)))
         {
             sb.AppendLine($"## {group.Key}");
             sb.AppendLine();
-            sb.AppendLine("| Name | Narrative meaning | Trigger | System cause | Loop | Duration | Priority | Interruptible | Cooldown | Entry | Exit |");
-            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
+            sb.AppendLine("| Name | Narrative meaning | Trigger | System cause | Loop | Duration | Priority | Interruptible | Cooldown | Frequency | Entry | Exit |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
             foreach (var c in group)
             {
                 var dur = c.Loop ? "loop" : $"{c.Duration:0.##} s";
                 var cd = c.Cooldown > 0 ? $"{c.Cooldown:0.#} s" : "—";
-                sb.AppendLine($"| {c.Clip} | {c.NarrativeMeaning} | {c.Trigger} | {c.SystemCause} | {(c.Loop ? "Loop" : "One-shot")} | {dur} | {c.Priority} | {(c.Interruptible ? "Yes" : "No")} | {cd} | {c.Entry} | {c.Exit} |");
+                sb.AppendLine($"| {c.Clip} | {c.NarrativeMeaning} | {c.Trigger} | {c.SystemCause} | {(c.Loop ? "Loop" : "One-shot")} | {dur} | {c.Priority} | {(c.Interruptible ? "Yes" : "No")} | {cd} | {c.Rarity} | {c.Entry} | {c.Exit} |");
             }
             sb.AppendLine();
         }

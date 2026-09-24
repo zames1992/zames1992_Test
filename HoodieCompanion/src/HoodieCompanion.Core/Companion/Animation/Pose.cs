@@ -18,7 +18,7 @@ public struct Pose
     public double ShadowScale, ShadowAlpha;
     public double Opacity, Scale;
     // Accessories (0 = hidden .. 1 = fully shown). They exist only while an animation uses them.
-    public double PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil;
+    public double PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil, PropCrate;
 
     public static Pose Neutral => new()
     {
@@ -50,7 +50,7 @@ public struct Pose
             PropBackpack = L(a.PropBackpack, b.PropBackpack, t), BackpackLid = L(a.BackpackLid, b.BackpackLid, t),
             PropLaptop = L(a.PropLaptop, b.PropLaptop, t), LaptopLid = L(a.LaptopLid, b.LaptopLid, t),
             PropBook = L(a.PropBook, b.PropBook, t), PropNotebook = L(a.PropNotebook, b.PropNotebook, t),
-            PropPencil = L(a.PropPencil, b.PropPencil, t),
+            PropPencil = L(a.PropPencil, b.PropPencil, t), PropCrate = L(a.PropCrate, b.PropCrate, t),
         };
     }
 
@@ -60,7 +60,7 @@ public struct Pose
         RootDx, RootDy, RootRot, BodySx, BodySy, TorsoRot, TorsoDy, HeadRot, HeadDx, HeadDy, LookX, LookY, EyeOpen, EyeScale,
         ArmLRot, ArmRRot, ArmLDy, ArmRDy, LegLRot, LegRRot, LegLDy, LegRDy, LegLSy, LegRSy, StringsRot,
         ItemAlpha, ItemDx, ItemDy, ItemRot, ItemScale, ShadowScale, ShadowAlpha, Opacity, Scale,
-        PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil,
+        PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil, PropCrate,
     };
 }
 
@@ -76,6 +76,13 @@ public enum PoseEffect
     Heat,
     Dots,
     Arrow,
+    Stars,
+    Sweat,
+    Heart,
+    Anger,
+    Music,
+    Knock,
+    PaperBall,
 }
 
 public readonly record struct AnimFrame(Pose Pose, PoseEffect Effect, double EffectTime);

@@ -27,16 +27,17 @@ public sealed class ShellIconService
         ImageSource? img = null;
         try
         {
-            if (item.IconCache is not null && File.Exists(item.IconCache))
+            if (item.IconCache is not null && item.IconCache.EndsWith(CacheSuffix, StringComparison.Ordinal) && File.Exists(item.IconCache))
             {
                 img = LoadPng(item.IconCache);
             }
             else if (item.Type != InventoryItemType.Url)
             {
-                img = Extract(item.Target, item.Type == InventoryItemType.Folder);
+                // Thumbnails for pictures/videos/documents, large icons for everything else (incl. Recycle Bin, Store apps).
+                img = ShellInterop.Image(item.Target, 96) ?? Extract(item.Target, item.Type == InventoryItemType.Folder);
                 if (img is BitmapSource bmp)
                 {
-                    var path = Path.Combine(_cacheDir, item.Id + ".png");
+                    var path = Path.Combine(_cacheDir, item.Id + CacheSuffix);
                     using var fs = File.Create(path);
                     var enc = new PngBitmapEncoder();
                     enc.Frames.Add(BitmapFrame.Create(bmp));
@@ -53,7 +54,19 @@ public sealed class ShellIconService
         return img;
     }
 
+    private const string CacheSuffix = "-v2.png";
+
     public void Forget(string id) => _memory.Remove(id);
+
+    /// <summary>Icon for something not (yet) in the backpack, e.g. an app in search results. Not cached on disk.</summary>
+    public ImageSource? Preview(string parsingName)
+    {
+        if (_memory.TryGetValue("preview:" + parsingName, out var c)) return c;
+        ImageSource? img = null;
+        try { img = ShellInterop.Image(parsingName, 48); } catch { }
+        _memory["preview:" + parsingName] = img;
+        return img;
+    }
 
     private static ImageSource LoadPng(string path)
     {

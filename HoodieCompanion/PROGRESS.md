@@ -35,6 +35,16 @@
   ladder/rope climbing between monitors, livelier behaviour (faster walking, shorter decision gaps), richer PC Status
   (bars + 60 s graphs), fixed timer/reminder inputs, Russian language. 40 tests; QA scenario 20/20 PASS under Wine.
 
+- v1.2 after the second user test: behaviour architecture first (Mind inner state, event→reaction table with priority
+  tiers and interruption rule, idle director with frequency tiers, AFK timeline 5/15/30/60/90 min with wake-and-greet),
+  then a 128-clip library in 19 states (emotions, cursor play, traversal, grab-anywhere hangs, lying/sleeping, diegetic
+  PC load / downloads / notifications, tear-the-page). Grab by hood / hands / feet / body with a generalised pendulum;
+  landing without the sideways jump; catching the taskbar edge and climbing up instead of respawning; pelvis in the rig
+  (no gap when walking), hip sway and follow-through springs; sleep lying down. Backpack: Recycle Bin and other shell
+  objects, background opening, thumbnails, app search (Calculator & Store apps), drag to reorder. Notes as a Sticky Notes
+  board with colours, labels and desktop-pinned notes. Desktop right-click menu. Territory editor: tools always clickable,
+  legend. 56 tests; QA scenario 29/29 PASS under Wine.
+
 ## FAILED (and what replaced it)
 
 - Building with the WindowsDesktop SDK on Linux: not shipped in the Ubuntu SDK → switched to a plain
@@ -47,7 +57,7 @@
 ## NEXT
 
 - Measure idle CPU/RAM on a desktop PC with a GPU (CI VM is GPU-less).
-- Windows as platforms (stand on window title bars), richer obstruction detection.
+- Windows and desktop icons as platforms (stand on title bars / icons), climbing the sides of the screen.
 - Elbow joints for nicer arm poses.
 
 ## BLOCKER
