@@ -27,11 +27,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 
 echo.
 echo Done:
-echo   publish\win-x64\HoodieCompanion.exe
+echo   publish\win-x64\HoodieCompanion.exe   ^<-- run this to start Hoodie
 echo   publish\HoodieCompanion-win-x64.zip
+if not defined CI (
+  explorer "publish\win-x64"
+  pause
+)
 exit /b 0
 
 :fail
 echo.
 echo BUILD FAILED
+if not defined CI pause
 exit /b 1
