@@ -15,7 +15,10 @@ public enum BehaviorState
     Landing,
     Recovering,
     ReceivingItem,
-    ShowingBackpack,
+    /// <summary>Doing something with an accessory (backpack, laptop, book, notebook).</summary>
+    Activity,
+    /// <summary>On a ladder or a rope between monitors.</summary>
+    Climbing,
     Alert,
     Leaving,
     Hidden,
@@ -52,7 +55,7 @@ public sealed class PetStateMachine
 
     public IEnumerable<string> RecentTransitions => _log;
 
-    public bool IsPhysical => State is BehaviorState.Grabbed or BehaviorState.Airborne or BehaviorState.Jumping or BehaviorState.Landing;
+    public bool IsPhysical => State is BehaviorState.Grabbed or BehaviorState.Airborne or BehaviorState.Jumping or BehaviorState.Landing or BehaviorState.Climbing;
 
     public bool IsGroundedCalm => State is BehaviorState.Idle or BehaviorState.Sitting or BehaviorState.Sleeping or BehaviorState.Emote or BehaviorState.Walking or BehaviorState.Turning;
 

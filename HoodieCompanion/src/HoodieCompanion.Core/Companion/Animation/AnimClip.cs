@@ -19,4 +19,7 @@ public enum AnimClip
     PCBusy, PCIdle, DownloadWatching,
     // World
     PeekEdge, JumpMonitor, LandMonitor, LeaveScreen, ReturnToScreen,
+    PlaceLadder, ClimbLadder, TieRope, ClimbRope,
+    // Accessories & activities
+    CloseBackpack, LaptopOpen, LaptopType, LaptopClose, ReadBook, WriteNotes, Dance, JumpForJoy,
 }

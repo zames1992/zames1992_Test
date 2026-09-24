@@ -48,6 +48,8 @@ public sealed class AppSettings
     public bool HideOnFullscreen { get; set; } = true;
 
     // SYSTEM
+    /// <summary>"auto" (Windows display language), "en" or "ru".</summary>
+    public string Language { get; set; } = "auto";
     public bool StartWithWindows { get; set; }
     public bool FirstRunDone { get; set; }
 
@@ -59,5 +61,6 @@ public sealed class AppSettings
         WalkSpeed = Math.Clamp(double.IsFinite(WalkSpeed) ? WalkSpeed : 1, 0.4, 2.5);
         if (!Enum.IsDefined(DefaultPresenceMode)) DefaultPresenceMode = PresenceMode.Normal;
         if (!Enum.IsDefined(CurrentPresenceMode)) CurrentPresenceMode = PresenceMode.Normal;
+        if (Language is not ("auto" or "en" or "ru")) Language = "auto";
     }
 }

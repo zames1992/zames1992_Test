@@ -21,6 +21,16 @@ public static class WindowInterop
         NativeMethods.SetWindowLongPtr(h, NativeMethods.GWL_EXSTYLE, new IntPtr(ex));
     }
 
+    /// <summary>Mouse clicks pass straight through (for decorative world props).</summary>
+    public static void MakeClickThrough(Window w)
+    {
+        var h = Handle(w);
+        if (h == IntPtr.Zero) return;
+        var ex = NativeMethods.GetWindowLongPtr(h, NativeMethods.GWL_EXSTYLE).ToInt64();
+        ex |= NativeMethods.WS_EX_TOOLWINDOW | NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_LAYERED;
+        NativeMethods.SetWindowLongPtr(h, NativeMethods.GWL_EXSTYLE, new IntPtr(ex));
+    }
+
     public static void SetBounds(IntPtr h, int x, int y, int width, int height, bool topmost)
     {
         if (h == IntPtr.Zero) return;

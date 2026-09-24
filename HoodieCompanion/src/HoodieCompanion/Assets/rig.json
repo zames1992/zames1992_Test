@@ -1,64 +1,551 @@
 {
-  "comment": "Hoodie cutout rig. Coordinates are in reference-image pixels (docs/reference.png, 559x923). Single source of truth for the app renderer and tools/render_rig.py.",
-  "schemaVersion": 1,
-  "root": [272, 830],
-  "bounds": [100, 66, 458, 840],
-  "outline": "#15181D",
-  "outlineWidth": 6,
-  "groups": {
-    "shadow": { "pivot": [272, 810], "parent": null },
-    "body":   { "pivot": [272, 830], "parent": null },
-    "legL":   { "pivot": [214, 612], "parent": "body" },
-    "legR":   { "pivot": [340, 612], "parent": "body" },
-    "torso":  { "pivot": [272, 612], "parent": "body" },
-    "strings":{ "pivot": [248, 368], "parent": "torso" },
-    "armL":   { "pivot": [168, 350], "parent": "torso" },
-    "armR":   { "pivot": [378, 350], "parent": "torso" },
-    "head":   { "pivot": [262, 350], "parent": "torso" },
-    "face":   { "pivot": [243, 252], "parent": "head" },
-    "eyes":   { "pivot": [238, 238], "parent": "face" },
-    "item":   { "pivot": [272, 470], "parent": "torso" }
+ "comment": "Hoodie cutout rig. Coordinates are in reference-image pixels (docs/reference.png, 559x923). Single source of truth for the app renderer and tools/render_rig.py.",
+ "schemaVersion": 1,
+ "root": [
+  272,
+  830
+ ],
+ "bounds": [
+  100,
+  66,
+  458,
+  840
+ ],
+ "outline": "#15181D",
+ "outlineWidth": 6,
+ "groups": {
+  "shadow": {
+   "pivot": [
+    272,
+    810
+   ],
+   "parent": null
   },
-  "parts": [
-    { "name": "shadow", "group": "shadow", "ellipse": [272, 810, 212, 35], "fill": "#2C3038", "stroke": "none", "opacity": 0.42 },
-
-    { "name": "legL.pants", "group": "legL", "path": "M 160 604 C 164 650 170 700 176 730 C 194 740 230 740 250 730 C 256 692 262 656 272 626 C 240 612 190 606 160 604 Z", "fill": "#23282F" },
-    { "name": "legL.sock", "group": "legL", "path": "M 198 730 L 228 730 L 229 770 L 199 770 Z", "fill": "#FBF4E2" },
-    { "name": "legL.sockShade", "group": "legL", "path": "M 201 733 L 226 733 L 226 744 L 201 744 Z", "fill": "#E3C3A0", "stroke": "none" },
-    { "name": "legL.shoe", "group": "legL", "path": "M 126 800 C 126 782 158 772 192 762 L 232 758 C 242 772 242 796 236 806 C 200 818 150 822 128 814 Z", "fill": "#1B2126" },
-    { "name": "legL.sole", "group": "legL", "path": "M 128 798 C 152 806 200 806 236 794 L 236 806 C 202 820 150 823 130 815 Z", "fill": "#FBF4E2", "stroke": "none" },
-    { "name": "legL.stripes", "group": "legL", "path": "M 160 786 L 176 777 M 170 792 L 188 782 M 182 797 L 200 787", "fill": "none", "stroke": "#FBF4E2", "strokeWidth": 5 },
-
-    { "name": "legR.pants", "group": "legR", "path": "M 280 628 C 294 658 304 700 308 734 C 332 746 370 746 392 736 C 394 700 400 650 404 602 C 360 606 314 612 280 628 Z", "fill": "#23282F" },
-    { "name": "legR.sock", "group": "legR", "path": "M 338 736 L 366 736 L 366 784 L 339 784 Z", "fill": "#FBF4E2" },
-    { "name": "legR.sockShade", "group": "legR", "path": "M 341 739 L 363 739 L 363 750 L 341 750 Z", "fill": "#E3C3A0", "stroke": "none" },
-    { "name": "legR.shoe", "group": "legR", "path": "M 288 816 C 290 796 318 786 344 776 L 372 776 C 382 790 382 816 374 828 C 340 836 300 836 289 826 Z", "fill": "#1B2126" },
-    { "name": "legR.sole", "group": "legR", "path": "M 288 808 C 306 818 330 820 350 816 L 378 812 L 376 827 C 346 839 304 839 289 830 Z", "fill": "#FBF4E2", "stroke": "none" },
-    { "name": "legR.stripes", "group": "legR", "path": "M 318 801 L 334 791 M 327 806 L 345 796 M 337 811 L 355 801", "fill": "none", "stroke": "#FBF4E2", "strokeWidth": 5 },
-
-    { "name": "torso.body", "group": "torso", "path": "M 162 330 C 142 400 134 480 138 560 C 142 604 200 618 272 620 C 346 618 396 606 404 572 C 410 480 404 380 392 318 Z", "fill": "#34363E" },
-    { "name": "torso.hem", "group": "torso", "path": "M 142 580 C 200 604 342 606 402 580 L 402 594 C 380 618 322 626 272 626 C 208 626 160 616 142 598 Z", "fill": "#25282E" },
-
-    { "name": "strings.left", "group": "strings", "path": "M 216 366 L 222 366 L 222 442 C 222 446 216 446 216 442 Z", "fill": "#FBF4E2", "strokeWidth": 4 },
-    { "name": "strings.right", "group": "strings", "path": "M 274 368 L 280 368 L 280 450 C 280 454 274 454 274 450 Z", "fill": "#FBF4E2", "strokeWidth": 4 },
-
-    { "name": "armL.hand", "group": "armL", "ellipse": [140, 596, 12, 7], "fill": "#FBF4E2", "strokeWidth": 4 },
-    { "name": "armL.sleeve", "group": "armL", "path": "M 172 334 C 142 360 116 450 108 540 C 105 574 116 590 140 594 L 160 596 C 160 556 152 470 164 404 C 170 372 176 350 172 334 Z", "fill": "#34363E" },
-    { "name": "armL.fold", "group": "armL", "path": "M 164 392 C 158 420 154 446 152 470", "fill": "none", "strokeWidth": 3 },
-
-    { "name": "armR.hand", "group": "armR", "ellipse": [412, 610, 12, 7], "fill": "#FBF4E2", "strokeWidth": 4 },
-    { "name": "armR.sleeve", "group": "armR", "path": "M 380 318 C 422 336 444 430 451 520 C 455 574 442 602 416 608 L 398 606 C 400 560 394 470 384 402 C 380 372 376 340 380 318 Z", "fill": "#34363E" },
-    { "name": "armR.fold", "group": "armR", "path": "M 356 412 C 362 450 368 490 374 522", "fill": "none", "strokeWidth": 3 },
-
-    { "name": "head.hood", "group": "head", "path": "M 276 71 C 362 71 421 150 421 250 C 421 290 418 312 404 334 C 372 364 310 374 245 382 C 200 374 168 362 150 342 C 133 312 127 282 128 250 C 130 150 194 71 276 71 Z", "fill": "#34363E" },
-    { "name": "head.hoodShade", "group": "head", "path": "M 402 238 C 406 300 372 346 300 368 C 352 340 388 300 402 238 Z", "fill": "#262930", "stroke": "none" },
-    { "name": "head.rim", "group": "face", "ellipse": [243, 250, 99, 113], "fill": "#1E2126", "stroke": "none" },
-    { "name": "face.tan", "group": "face", "ellipse": [243, 246, 89, 103], "fill": "#E3C3A0", "stroke": "none" },
-    { "name": "face.skin", "group": "face", "ellipse": [244, 254, 88, 99], "fill": "#FDF5DC", "stroke": "none" },
-    { "name": "eyes.left", "group": "eyes", "ellipse": [191, 237, 9, 19], "fill": "#26282A", "stroke": "none" },
-    { "name": "eyes.right", "group": "eyes", "ellipse": [286, 239, 10, 19], "fill": "#26282A", "stroke": "none" },
-
-    { "name": "item.card", "group": "item", "path": "M 226 418 L 314 408 L 324 504 L 236 514 Z", "fill": "#FBF4E2", "strokeWidth": 4 },
-    { "name": "item.lines", "group": "item", "path": "M 246 440 L 300 434 M 248 460 L 302 454 M 250 480 L 286 476", "fill": "none", "strokeWidth": 3 }
-  ]
+  "body": {
+   "pivot": [
+    272,
+    830
+   ],
+   "parent": null
+  },
+  "legL": {
+   "pivot": [
+    214,
+    612
+   ],
+   "parent": "body"
+  },
+  "legR": {
+   "pivot": [
+    340,
+    612
+   ],
+   "parent": "body"
+  },
+  "torso": {
+   "pivot": [
+    272,
+    612
+   ],
+   "parent": "body"
+  },
+  "strings": {
+   "pivot": [
+    248,
+    368
+   ],
+   "parent": "torso"
+  },
+  "armL": {
+   "pivot": [
+    168,
+    350
+   ],
+   "parent": "torso"
+  },
+  "armR": {
+   "pivot": [
+    378,
+    350
+   ],
+   "parent": "torso"
+  },
+  "head": {
+   "pivot": [
+    262,
+    350
+   ],
+   "parent": "torso"
+  },
+  "face": {
+   "pivot": [
+    243,
+    252
+   ],
+   "parent": "head"
+  },
+  "eyes": {
+   "pivot": [
+    238,
+    238
+   ],
+   "parent": "face"
+  },
+  "item": {
+   "pivot": [
+    272,
+    470
+   ],
+   "parent": "torso"
+  },
+  "backpack": {
+   "pivot": [
+    272,
+    540
+   ],
+   "parent": "torso"
+  },
+  "backpackMouth": {
+   "pivot": [
+    272,
+    470
+   ],
+   "parent": "backpack"
+  },
+  "backpackLid": {
+   "pivot": [
+    272,
+    462
+   ],
+   "parent": "backpack"
+  },
+  "laptop": {
+   "pivot": [
+    170,
+    610
+   ],
+   "parent": "body"
+  },
+  "laptopLid": {
+   "pivot": [
+    170,
+    600
+   ],
+   "parent": "laptop"
+  },
+  "book": {
+   "pivot": [
+    272,
+    520
+   ],
+   "parent": "torso"
+  },
+  "notebook": {
+   "pivot": [
+    200,
+    515
+   ],
+   "parent": "torso"
+  },
+  "pencil": {
+   "pivot": [
+    412,
+    605
+   ],
+   "parent": "armR"
+  }
+ },
+ "parts": [
+  {
+   "name": "shadow",
+   "group": "shadow",
+   "ellipse": [
+    272,
+    810,
+    212,
+    35
+   ],
+   "fill": "#2C3038",
+   "stroke": "none",
+   "opacity": 0.42
+  },
+  {
+   "name": "legL.pants",
+   "group": "legL",
+   "path": "M 160 604 C 164 650 170 700 176 730 C 194 740 230 740 250 730 C 256 692 262 656 272 626 C 240 612 190 606 160 604 Z",
+   "fill": "#23282F"
+  },
+  {
+   "name": "legL.sock",
+   "group": "legL",
+   "path": "M 198 730 L 228 730 L 229 770 L 199 770 Z",
+   "fill": "#FBF4E2"
+  },
+  {
+   "name": "legL.sockShade",
+   "group": "legL",
+   "path": "M 201 733 L 226 733 L 226 744 L 201 744 Z",
+   "fill": "#E3C3A0",
+   "stroke": "none"
+  },
+  {
+   "name": "legL.shoe",
+   "group": "legL",
+   "path": "M 126 800 C 126 782 158 772 192 762 L 232 758 C 242 772 242 796 236 806 C 200 818 150 822 128 814 Z",
+   "fill": "#1B2126"
+  },
+  {
+   "name": "legL.sole",
+   "group": "legL",
+   "path": "M 128 798 C 152 806 200 806 236 794 L 236 806 C 202 820 150 823 130 815 Z",
+   "fill": "#FBF4E2",
+   "stroke": "none"
+  },
+  {
+   "name": "legL.stripes",
+   "group": "legL",
+   "path": "M 160 786 L 176 777 M 170 792 L 188 782 M 182 797 L 200 787",
+   "fill": "none",
+   "stroke": "#FBF4E2",
+   "strokeWidth": 5
+  },
+  {
+   "name": "legR.pants",
+   "group": "legR",
+   "path": "M 280 628 C 294 658 304 700 308 734 C 332 746 370 746 392 736 C 394 700 400 650 404 602 C 360 606 314 612 280 628 Z",
+   "fill": "#23282F"
+  },
+  {
+   "name": "legR.sock",
+   "group": "legR",
+   "path": "M 338 736 L 366 736 L 366 784 L 339 784 Z",
+   "fill": "#FBF4E2"
+  },
+  {
+   "name": "legR.sockShade",
+   "group": "legR",
+   "path": "M 341 739 L 363 739 L 363 750 L 341 750 Z",
+   "fill": "#E3C3A0",
+   "stroke": "none"
+  },
+  {
+   "name": "legR.shoe",
+   "group": "legR",
+   "path": "M 288 816 C 290 796 318 786 344 776 L 372 776 C 382 790 382 816 374 828 C 340 836 300 836 289 826 Z",
+   "fill": "#1B2126"
+  },
+  {
+   "name": "legR.sole",
+   "group": "legR",
+   "path": "M 288 808 C 306 818 330 820 350 816 L 378 812 L 376 827 C 346 839 304 839 289 830 Z",
+   "fill": "#FBF4E2",
+   "stroke": "none"
+  },
+  {
+   "name": "legR.stripes",
+   "group": "legR",
+   "path": "M 318 801 L 334 791 M 327 806 L 345 796 M 337 811 L 355 801",
+   "fill": "none",
+   "stroke": "#FBF4E2",
+   "strokeWidth": 5
+  },
+  {
+   "name": "torso.body",
+   "group": "torso",
+   "path": "M 162 330 C 142 400 134 480 138 560 C 142 604 200 618 272 620 C 346 618 396 606 404 572 C 410 480 404 380 392 318 Z",
+   "fill": "#34363E"
+  },
+  {
+   "name": "torso.hem",
+   "group": "torso",
+   "path": "M 142 580 C 200 604 342 606 402 580 L 402 594 C 380 618 322 626 272 626 C 208 626 160 616 142 598 Z",
+   "fill": "#25282E"
+  },
+  {
+   "name": "strings.left",
+   "group": "strings",
+   "path": "M 216 366 L 222 366 L 222 442 C 222 446 216 446 216 442 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "strings.right",
+   "group": "strings",
+   "path": "M 274 368 L 280 368 L 280 450 C 280 454 274 454 274 450 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "armL.hand",
+   "group": "armL",
+   "ellipse": [
+    140,
+    596,
+    12,
+    7
+   ],
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "armL.sleeve",
+   "group": "armL",
+   "path": "M 172 334 C 142 360 116 450 108 540 C 105 574 116 590 140 594 L 160 596 C 160 556 152 470 164 404 C 170 372 176 350 172 334 Z",
+   "fill": "#34363E"
+  },
+  {
+   "name": "armL.fold",
+   "group": "armL",
+   "path": "M 164 392 C 158 420 154 446 152 470",
+   "fill": "none",
+   "strokeWidth": 3
+  },
+  {
+   "name": "armR.hand",
+   "group": "armR",
+   "ellipse": [
+    412,
+    610,
+    12,
+    7
+   ],
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "armR.sleeve",
+   "group": "armR",
+   "path": "M 380 318 C 422 336 444 430 451 520 C 455 574 442 602 416 608 L 398 606 C 400 560 394 470 384 402 C 380 372 376 340 380 318 Z",
+   "fill": "#34363E"
+  },
+  {
+   "name": "armR.fold",
+   "group": "armR",
+   "path": "M 356 412 C 362 450 368 490 374 522",
+   "fill": "none",
+   "strokeWidth": 3
+  },
+  {
+   "name": "head.hood",
+   "group": "head",
+   "path": "M 276 71 C 362 71 421 150 421 250 C 421 290 418 312 404 334 C 372 364 310 374 245 382 C 200 374 168 362 150 342 C 133 312 127 282 128 250 C 130 150 194 71 276 71 Z",
+   "fill": "#34363E"
+  },
+  {
+   "name": "head.hoodShade",
+   "group": "head",
+   "path": "M 402 238 C 406 300 372 346 300 368 C 352 340 388 300 402 238 Z",
+   "fill": "#262930",
+   "stroke": "none"
+  },
+  {
+   "name": "head.rim",
+   "group": "face",
+   "ellipse": [
+    243,
+    250,
+    99,
+    113
+   ],
+   "fill": "#1E2126",
+   "stroke": "none"
+  },
+  {
+   "name": "face.tan",
+   "group": "face",
+   "ellipse": [
+    243,
+    246,
+    89,
+    103
+   ],
+   "fill": "#E3C3A0",
+   "stroke": "none"
+  },
+  {
+   "name": "face.skin",
+   "group": "face",
+   "ellipse": [
+    244,
+    254,
+    88,
+    99
+   ],
+   "fill": "#FDF5DC",
+   "stroke": "none"
+  },
+  {
+   "name": "eyes.left",
+   "group": "eyes",
+   "ellipse": [
+    191,
+    237,
+    9,
+    19
+   ],
+   "fill": "#26282A",
+   "stroke": "none"
+  },
+  {
+   "name": "eyes.right",
+   "group": "eyes",
+   "ellipse": [
+    286,
+    239,
+    10,
+    19
+   ],
+   "fill": "#26282A",
+   "stroke": "none"
+  },
+  {
+   "name": "item.card",
+   "group": "item",
+   "path": "M 226 418 L 314 408 L 324 504 L 236 514 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "item.lines",
+   "group": "item",
+   "path": "M 246 440 L 300 434 M 248 460 L 302 454 M 250 480 L 286 476",
+   "fill": "none",
+   "strokeWidth": 3
+  },
+  {
+   "name": "backpack.body",
+   "group": "backpack",
+   "path": "M 190 482 C 190 462 205 452 225 452 L 320 452 C 340 452 355 462 355 482 L 360 610 C 360 624 350 632 336 632 L 210 632 C 196 632 186 624 186 610 Z",
+   "fill": "#C4873A"
+  },
+  {
+   "name": "backpack.pocket",
+   "group": "backpack",
+   "path": "M 216 548 L 330 548 L 330 602 C 330 610 324 614 316 614 L 230 614 C 222 614 216 610 216 602 Z",
+   "fill": "#B07733",
+   "strokeWidth": 5
+  },
+  {
+   "name": "backpack.pocketFlap",
+   "group": "backpack",
+   "path": "M 216 548 C 240 566 306 566 330 548",
+   "fill": "none",
+   "strokeWidth": 4
+  },
+  {
+   "name": "backpack.buckle",
+   "group": "backpack",
+   "path": "M 266 556 L 280 556 L 280 572 L 266 572 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 3
+  },
+  {
+   "name": "backpack.handle",
+   "group": "backpack",
+   "path": "M 248 452 C 248 426 298 426 298 452",
+   "fill": "none",
+   "strokeWidth": 7
+  },
+  {
+   "name": "backpack.mouth",
+   "group": "backpackMouth",
+   "path": "M 198 472 C 198 454 347 454 347 472 C 347 490 198 490 198 472 Z",
+   "fill": "#3A2A1C",
+   "stroke": "none"
+  },
+  {
+   "name": "backpack.lid",
+   "group": "backpackLid",
+   "path": "M 188 486 C 188 452 357 452 357 486 L 352 506 C 300 518 245 518 193 506 Z",
+   "fill": "#B97B34"
+  },
+  {
+   "name": "laptop.base",
+   "group": "laptop",
+   "path": "M 30 600 L 306 600 L 326 622 L 10 622 Z",
+   "fill": "#8C929B"
+  },
+  {
+   "name": "laptop.lid",
+   "group": "laptopLid",
+   "path": "M 48 600 L 290 600 L 276 436 L 62 436 Z",
+   "fill": "#A9AFB8"
+  },
+  {
+   "name": "laptop.logo",
+   "group": "laptopLid",
+   "ellipse": [
+    169,
+    518,
+    16,
+    16
+   ],
+   "fill": "#DCE1E6",
+   "stroke": "none"
+  },
+  {
+   "name": "book.cover",
+   "group": "book",
+   "path": "M 168 472 L 272 486 L 376 472 L 376 576 L 272 588 L 168 576 Z",
+   "fill": "#A8483A"
+  },
+  {
+   "name": "book.left",
+   "group": "book",
+   "path": "M 272 480 C 245 466 205 464 178 474 L 178 568 C 205 558 245 560 272 574 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "book.right",
+   "group": "book",
+   "path": "M 272 480 C 299 466 339 464 366 474 L 366 568 C 339 558 299 560 272 574 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  },
+  {
+   "name": "book.lines",
+   "group": "book",
+   "path": "M 194 492 L 256 500 M 194 510 L 256 518 M 194 528 L 250 535 M 288 500 L 350 492 M 288 518 L 350 510 M 288 536 L 344 529",
+   "fill": "none",
+   "stroke": "#9AA0A8",
+   "strokeWidth": 3
+  },
+  {
+   "name": "notebook.page",
+   "group": "notebook",
+   "path": "M 148 470 L 240 460 L 250 562 L 158 572 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 5
+  },
+  {
+   "name": "notebook.lines",
+   "group": "notebook",
+   "path": "M 164 494 L 232 487 M 166 514 L 234 507 M 168 534 L 236 527",
+   "fill": "none",
+   "stroke": "#7FA7D9",
+   "strokeWidth": 3
+  },
+  {
+   "name": "notebook.spiral",
+   "group": "notebook",
+   "path": "M 166 468 L 166 458 M 188 466 L 188 456 M 210 463 L 210 453 M 230 461 L 230 451",
+   "fill": "none",
+   "strokeWidth": 5
+  },
+  {
+   "name": "pencil.body",
+   "group": "pencil",
+   "path": "M 398 618 L 432 568 L 444 576 L 410 626 Z",
+   "fill": "#E8B43E",
+   "strokeWidth": 4
+  },
+  {
+   "name": "pencil.tip",
+   "group": "pencil",
+   "path": "M 398 618 L 410 626 L 395 634 Z",
+   "fill": "#FBF4E2",
+   "strokeWidth": 4
+  }
+ ]
 }

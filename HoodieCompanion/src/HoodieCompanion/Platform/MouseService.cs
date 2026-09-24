@@ -11,7 +11,15 @@ public static class MouseService
         return NativeMethods.GetCursorPos(out var p) ? new Vec2(p.X, p.Y) : Vec2.Zero;
     }
 
-    public static bool LeftButtonDown() => (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LBUTTON) & 0x8000) != 0;
+    /// <summary>
+    /// State of the *logical* primary button. GetAsyncKeyState reports physical buttons, so when the user
+    /// swapped buttons (left-handed setup) the primary button is the physical right one.
+    /// </summary>
+    public static bool LeftButtonDown()
+    {
+        var vk = System.Windows.SystemParameters.SwapButtons ? 0x02 : NativeMethods.VK_LBUTTON;
+        return (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
+    }
 
     public static double UserIdleSeconds()
     {

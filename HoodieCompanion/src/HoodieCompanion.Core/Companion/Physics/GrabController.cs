@@ -11,8 +11,8 @@ public sealed class GrabController
 {
     public const double Stiffness = 700;      // 1/s^2
     public const double DampingRatio = 0.85;
-    public const double PendulumDamping = 3.2; // 1/s
-    public const double MaxAngle = 80;
+    public const double PendulumDamping = 5.5; // 1/s
+    public const double MaxAngle = 65;
 
     public Vec2 Pivot { get; private set; }
     public Vec2 PivotVelocity { get; private set; }

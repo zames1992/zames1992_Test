@@ -6,6 +6,7 @@ using System.Windows.Media;
 using HoodieCompanion.Platform;
 using HoodieCompanion.Presence;
 using HoodieCompanion.Settings;
+using static HoodieCompanion.UI.L;
 
 namespace HoodieCompanion.UI;
 
@@ -18,7 +19,7 @@ public sealed class SettingsWindow : Window
     public SettingsWindow(AppHost host)
     {
         _host = host;
-        Title = "Hoodie Companion — Settings";
+        Title = T("Hoodie Companion — Settings");
         Width = 520;
         Height = 720;
         MinWidth = 440;
@@ -37,71 +38,80 @@ public sealed class SettingsWindow : Window
     {
         var s = _host.Settings;
         _content.Children.Clear();
-        var title = Ui.Text("Settings", 22, weight: FontWeights.SemiBold);
+        var title = Ui.Text(T("Settings"), 22, weight: FontWeights.SemiBold);
         _content.Children.Add(title);
-        _content.Children.Add(Ui.Text("Everything is stored locally on this PC. Nothing is sent anywhere.", 12, dim: true));
+        _content.Children.Add(Ui.Text(T("Everything is stored locally on this PC. Nothing is sent anywhere."), 12, dim: true));
 
-        Section("Companion");
-        SliderRow("Size", s.Scale, 0.5, 2.0, v => { s.Scale = v; _host.SettingsChanged(); }, v => $"{v * 100:0}%");
-        SliderRow("Walking speed", s.WalkSpeed, 0.4, 2.5, v => { s.WalkSpeed = v; _host.SettingsChanged(); }, v => $"{v:0.0}×");
+        Section(T("Language"));
+        var langs = new[] { "auto", "en", "ru" };
+        Combo(T("Interface language"), new[] { T("Automatic (Windows)"), "English", "Русский" }, Math.Max(0, Array.IndexOf(langs, s.Language)), i =>
+        {
+            s.Language = langs[Math.Max(0, i)];
+            L.Set(s.Language);
+            Dispatcher.BeginInvoke(Build);
+        });
 
-        Section("Behavior");
-        Check("Autonomous behavior (wanders, rests and explores on its own)", s.AutonomousBehavior, v => s.AutonomousBehavior = v);
+        Section(T("Companion"));
+        SliderRow(T("Size"), s.Scale, 0.5, 2.0, v => { s.Scale = v; _host.SettingsChanged(); }, v => $"{v * 100:0}%");
+        SliderRow(T("Walking speed"), s.WalkSpeed, 0.4, 2.5, v => { s.WalkSpeed = v; _host.SettingsChanged(); }, v => $"{v:0.0}×");
+
+        Section(T("Behavior"));
+        Check(T("Autonomous behavior (wanders, rests and explores on its own)"), s.AutonomousBehavior, v => s.AutonomousBehavior = v);
         var modes = Enum.GetValues<PresenceMode>().Where(m => m != PresenceMode.Alone).ToArray();
-        Combo("Default presence mode", modes.Select(m => m.ToString()).ToArray(), Array.IndexOf(modes, s.DefaultPresenceMode),
+        Combo(T("Default presence mode"), modes.Select(QuickPanel.ModeName).ToArray(), Array.IndexOf(modes, s.DefaultPresenceMode),
             i => s.DefaultPresenceMode = modes[Math.Max(0, i)]);
-        Check("Remember the last presence mode on start", s.RestorePresenceOnStart, v => s.RestorePresenceOnStart = v);
+        Check(T("Remember the last presence mode on start"), s.RestorePresenceOnStart, v => s.RestorePresenceOnStart = v);
 
-        Section("Interaction");
-        Check("React to the cursor", s.CursorReactions, v => s.CursorReactions = v);
-        Check("Allow grabbing and throwing", s.GrabThrow, v => s.GrabThrow = v);
-        Check("Reduced motion (no big jumps, gentle transitions)", s.ReducedMotion, v => s.ReducedMotion = v);
+        Section(T("Interaction"));
+        Check(T("React to the cursor"), s.CursorReactions, v => s.CursorReactions = v);
+        Check(T("Allow grabbing and throwing"), s.GrabThrow, v => s.GrabThrow = v);
+        Check(T("Reduced motion (no big jumps, gentle transitions)"), s.ReducedMotion, v => s.ReducedMotion = v);
 
-        Section("Appearance");
-        Check("Always on top", s.AlwaysOnTop, v => { s.AlwaysOnTop = v; _host.SettingsChanged(); });
+        Section(T("Appearance"));
+        Check(T("Always on top"), s.AlwaysOnTop, v => { s.AlwaysOnTop = v; _host.SettingsChanged(); });
 
-        Section("Territory");
+        Section(T("Territory"));
         var home = _host.Territory.Data.Home;
         var homeMon = home is null ? null : _host.World.FindById(home.MonitorId);
-        _content.Children.Add(Ui.Text(home is null ? "No Home set — Hoodie rests near the bottom-right of your main monitor." :
-            $"Home: {(homeMon?.DisplayName ?? "a monitor that is not connected")}, {home.RelX * 100:0}% from the left.", 12.5, dim: true));
+        _content.Children.Add(Ui.Text(home is null ? T("No Home set — Hoodie rests near the bottom-right of your main monitor.") :
+            F("Home: {0}, {1:0}% from the left.", homeMon is null ? T("a monitor that is not connected") : MonitorName(homeMon), home.RelX * 100), 12.5, dim: true));
         var homeButtons = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-        homeButtons.Children.Add(Btn("Set Home to Hoodie's current spot", () => { _host.SetHomeHere(); Build(); }));
-        homeButtons.Children.Add(Btn("Clear Home", () => { _host.Territory.Data.Home = null; _host.Territory.NotifyChanged(); Build(); }));
+        homeButtons.Children.Add(Btn(T("Set Home to Hoodie's current spot"), () => { _host.SetHomeHere(); Build(); }));
+        homeButtons.Children.Add(Btn(T("Clear Home"), () => { _host.Territory.Data.Home = null; _host.Territory.NotifyChanged(); Build(); }));
         _content.Children.Add(homeButtons);
 
-        var monCaption = Ui.Text("Per-monitor rules", 13, weight: FontWeights.SemiBold);
+        var monCaption = Ui.Text(T("Per-monitor rules"), 13, weight: FontWeights.SemiBold);
         monCaption.Margin = new Thickness(0, 12, 0, 4);
         _content.Children.Add(monCaption);
         var ruleTypes = new[] { RegionType.Free, RegionType.Quiet, RegionType.PassThrough, RegionType.NoGo };
-        var ruleNames = new[] { "Allowed", "Quiet", "Pass through only", "Never enter" };
+        var ruleNames = new[] { T("Allowed"), T("Quiet"), T("Pass through only"), T("Never enter") };
         foreach (var m in _host.World.Monitors)
         {
             var mon = m;
             var cur = _host.Territory.MonitorRule(mon.Id);
             var idx = Array.IndexOf(ruleTypes, cur);
-            Combo($"{mon.DisplayName} — {mon.Bounds.Width:0}×{mon.Bounds.Height:0} @ {mon.Scale * 100:0}%", ruleNames, idx < 0 ? 0 : idx,
+            Combo($"{MonitorName(mon)} — {mon.Bounds.Width:0}×{mon.Bounds.Height:0} @ {mon.Scale * 100:0}%", ruleNames, idx < 0 ? 0 : idx,
                 i => _host.Territory.SetMonitorRule(mon.Id, ruleTypes[Math.Max(0, i)]));
         }
         var regions = _host.Territory.Data.Regions.Count;
-        _content.Children.Add(Ui.Text(regions == 0 ? "No restricted areas drawn." : $"{regions} area(s) drawn.", 12.5, dim: true));
+        _content.Children.Add(Ui.Text(regions == 0 ? T("No restricted areas drawn.") : F("{0} area(s) drawn.", regions), 12.5, dim: true));
         var terr = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-        terr.Children.Add(Btn("Open territory editor…", () => _host.ShowTerritoryEditor(), accent: true));
-        terr.Children.Add(Btn("Clear drawn areas", () => { _host.Territory.Data.Regions.Clear(); _host.Territory.NotifyChanged(); Build(); }));
+        terr.Children.Add(Btn(T("Open territory editor…"), () => _host.ShowTerritoryEditor(), accent: true));
+        terr.Children.Add(Btn(T("Clear drawn areas"), () => { _host.Territory.Data.Regions.Clear(); _host.Territory.NotifyChanged(); Build(); }));
         _content.Children.Add(terr);
 
-        Section("App rules");
-        _content.Children.Add(Ui.Text("How Hoodie behaves while a specific app is in front. Fullscreen games, videos and presentations are handled automatically.", 12.5, dim: true));
-        Check("Hide or step aside during fullscreen apps", s.HideOnFullscreen, v => s.HideOnFullscreen = v);
+        Section(T("App rules"));
+        _content.Children.Add(Ui.Text(T("How Hoodie behaves while a specific app is in front. Fullscreen games, videos and presentations are handled automatically."), 12.5, dim: true));
+        Check(T("Hide or step aside during fullscreen apps"), s.HideOnFullscreen, v => s.HideOnFullscreen = v);
         var appModes = Enum.GetValues<AppPresenceMode>();
         foreach (var rule in _host.Territory.Data.AppRules.ToList())
         {
             var r = rule;
             var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
-            var del = Btn("Remove", () => { _host.Territory.Data.AppRules.Remove(r); _host.Territory.NotifyChanged(); Build(); });
+            var del = Btn(T("Remove"), () => { _host.Territory.Data.AppRules.Remove(r); _host.Territory.NotifyChanged(); Build(); });
             DockPanel.SetDock(del, Dock.Right);
             row.Children.Add(del);
-            var cb = new ComboBox { ItemsSource = appModes.Select(m => m.ToString()).ToList(), SelectedIndex = Array.IndexOf(appModes, r.PresenceMode), Margin = new Thickness(8, 0, 8, 0), MinWidth = 100 };
+            var cb = new ComboBox { ItemsSource = appModes.Select(AppModeName).ToList(), SelectedIndex = Array.IndexOf(appModes, r.PresenceMode), Margin = new Thickness(8, 0, 8, 0), MinWidth = 100 };
             cb.SelectionChanged += (_, _) => { r.PresenceMode = appModes[Math.Max(0, cb.SelectedIndex)]; _host.Territory.NotifyChanged(); };
             DockPanel.SetDock(cb, Dock.Right);
             row.Children.Add(cb);
@@ -113,8 +123,8 @@ public sealed class SettingsWindow : Window
         var addRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
         var nameBox = new ComboBox { IsEditable = true, MinWidth = 180, ItemsSource = _host.RecentProcesses.ToList() };
         nameBox.Resources[SystemColors.WindowBrushKey] = Ui.Brush("Surface");
-        var modeBox = new ComboBox { ItemsSource = appModes.Select(m => m.ToString()).ToList(), SelectedIndex = 1, Margin = new Thickness(8, 0, 8, 0), MinWidth = 100 };
-        var add = Btn("Add rule", () =>
+        var modeBox = new ComboBox { ItemsSource = appModes.Select(AppModeName).ToList(), SelectedIndex = 1, Margin = new Thickness(8, 0, 8, 0), MinWidth = 100 };
+        var add = Btn(T("Add rule"), () =>
         {
             var n = (nameBox.Text ?? "").Trim();
             if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) n = n[..^4];
@@ -130,20 +140,31 @@ public sealed class SettingsWindow : Window
         addRow.Children.Add(modeBox);
         addRow.Children.Add(nameBox);
         _content.Children.Add(addRow);
-        _content.Children.Add(Ui.Text("Quiet: calm down · Avoid: stay off that app's monitor · Hide: disappear while it is in front.", 11.5, dim: true));
+        _content.Children.Add(Ui.Text(T("Quiet: calm down · Avoid: stay off that app's monitor · Hide: disappear while it is in front."), 11.5, dim: true));
 
-        Section("Utilities");
-        Check("React to heavy PC load (rarely, with long cooldowns)", s.PcStatusReactions, v => s.PcStatusReactions = v);
-        Check("Sounds (soft, only for items, reminders and timers)", s.Sounds, v => s.Sounds = v);
+        Section(T("Utilities"));
+        Check(T("React to heavy PC load (rarely, with long cooldowns)"), s.PcStatusReactions, v => s.PcStatusReactions = v);
+        Check(T("Sounds (soft, only for items, reminders and timers)"), s.Sounds, v => s.Sounds = v);
 
-        Section("System");
-        Check("Start with Windows", StartupService.IsEnabled(), v => { s.StartWithWindows = v; StartupService.Set(v); });
-        _content.Children.Add(Ui.Text("Data location: " + _host.Storage.Root, 12, dim: true));
+        Section(T("System"));
+        Check(T("Start with Windows"), StartupService.IsEnabled(), v => { s.StartWithWindows = v; StartupService.Set(v); });
+        _content.Children.Add(Ui.Text(T("Data location: ") + _host.Storage.Root, 12, dim: true));
         var sys = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-        sys.Children.Add(Btn("Open data folder", () => _host.OpenDataFolder()));
-        sys.Children.Add(Btn("Emergency hide: Ctrl+Alt+H" + (_host.HotkeyRegistered ? "" : " (unavailable — use the tray)"), () => { }, enabled: false));
+        sys.Children.Add(Btn(T("Open data folder"), () => _host.OpenDataFolder()));
+        sys.Children.Add(Btn(T("Emergency hide: Ctrl+Alt+H") + (_host.HotkeyRegistered ? "" : " " + T("(unavailable — use the tray)")), () => { }, enabled: false));
         _content.Children.Add(sys);
     }
+
+    private static string MonitorName(HoodieCompanion.Geometry.MonitorInfo m) =>
+        F("Monitor {0}", m.Index + 1) + (m.IsPrimary ? " (" + T("main") + ")" : "");
+
+    private static string AppModeName(AppPresenceMode m) => m switch
+    {
+        AppPresenceMode.Quiet => T("Quiet"),
+        AppPresenceMode.Avoid => T("Avoid"),
+        AppPresenceMode.Hide => T("Hide"),
+        _ => T("Normal"),
+    };
 
     private void Section(string name)
     {

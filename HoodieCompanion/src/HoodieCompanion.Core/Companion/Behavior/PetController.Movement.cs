@@ -147,7 +147,15 @@ public sealed partial class PetController
             }
             else if (lower is not null)
             {
-                // Step off the edge and drop down onto the lower monitor.
+                var drop = lower.WorkArea.Bottom - Feet.Y;
+                if (drop > Dip(170) && !Settings.ReducedMotion || drop > Dip(170) && Settings.ReducedMotion)
+                {
+                    // A long way down: tie a rope at the edge and climb down it.
+                    var ropeX = (dir > 0 ? mon.WorkArea.Right : mon.WorkArea.Left) + dir * m.HalfWidthPx * 0.9;
+                    RopeDown(ropeX, lower.WorkArea.Bottom);
+                    return;
+                }
+                // Small step down: just hop off the edge.
                 Physics.Launch(Feet - new Vec2(0, m.FeetOffsetPx), new Vec2(dir * Dip(speedDip) * 1.2, -Dip(140)));
                 _thrownByUser = false;
                 _jumpToMonitor = true;
@@ -156,7 +164,14 @@ public sealed partial class PetController
             }
             else if (higher is not null)
             {
-                var landX = lead + dir * m.HalfWidthPx;
+                var landX = (dir > 0 ? higher.WorkArea.Left : higher.WorkArea.Right) + dir * m.HalfWidthPx * 1.4;
+                var rise = Feet.Y - higher.WorkArea.Bottom;
+                if (rise > Dip(60))
+                {
+                    // Too high to hop: prop a ladder against the higher monitor and climb.
+                    ClimbUp(higher.WorkArea.Bottom, landX);
+                    return;
+                }
                 JumpTo(new Vec2(landX, higher.WorkArea.Bottom), extraApexDip: 50);
                 return;
             }
@@ -278,13 +293,13 @@ public sealed partial class PetController
                 // Monitor above: walk under it, then leap up.
                 var landX = Territory.NearestStandableX(tm, x, m.HeightPx, m.HalfWidthPx) ?? x;
                 landX = Math.Clamp(landX, lo, hi);
-                StartWalk(landX, plan.Run, () => JumpTo(new Vec2(landX, tw.Bottom), extraApexDip: 80), ignoreTerritory: plan.IgnoreTerritory);
+                StartWalk(landX, plan.Run, () => ClimbUp(tw.Bottom, landX), ignoreTerritory: plan.IgnoreTerritory);
                 return;
             }
             if (tw.Top >= cw.Bottom - Dip(8))
             {
                 // Monitor below: walk over it, peek, drop through the floor.
-                StartWalk(x, plan.Run, DropThrough, ignoreTerritory: plan.IgnoreTerritory);
+                StartWalk(x, plan.Run, () => RopeDown(Feet.X, tw.Bottom), ignoreTerritory: plan.IgnoreTerritory);
                 return;
             }
         }
@@ -355,6 +370,8 @@ public sealed partial class PetController
         _walkTargetX = null;
         _travel = null;
         _sequence.Clear();
+        DropActivity();
+        DropClimb();
         Go(BehaviorState.Grabbed, "grabbed", force: true);
         Animation.Play(AnimClip.GrabReaction, force: true, restart: true);
         Drives.OnUserAttention();

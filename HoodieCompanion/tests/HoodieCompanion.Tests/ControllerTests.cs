@@ -176,17 +176,74 @@ public class ControllerTests
     }
 
     [Fact]
-    public void StackedMonitors_TravelUpUsesJump()
+    public void StackedMonitors_TravelUpUsesLadder_AndDownUsesRope()
     {
         var world = TestWorlds.Stacked();
         var sim = new Sim(world, seed: 21);
         sim.Pet.Place(new Vec2(1500, 1040), appear: false);
         sim.Run(0.5);
-        var jumped = false;
-        sim.Pet.TravelTo(new Vec2(1800, 0), run: false, onArrive: null);
-        sim.Run(40, r => jumped |= r.State == BehaviorState.Airborne);
-        Assert.True(jumped);
+        var ladder = false;
+        sim.Pet.TravelTo(new Vec2(1800, -1), run: false, onArrive: null);
+        sim.Run(40, r => ladder |= r.State == BehaviorState.Climbing && r.Prop is { Kind: WorldPropKind.Ladder });
+        Assert.True(ladder, "expected a ladder climb");
         Assert.Equal(0, sim.Pet.Feet.Y, 1);
+        Assert.Equal("B", world.MonitorAt(sim.Pet.Feet)!.Id);
+
+        var rope = false;
+        sim.Pet.TravelTo(new Vec2(900, 1040), run: false, onArrive: null);
+        sim.Run(40, r => rope |= r.State == BehaviorState.Climbing && r.Prop is { Kind: WorldPropKind.Rope });
+        Assert.True(rope, "expected a rope descent");
+        Assert.Equal(1040, sim.Pet.Feet.Y, 1);
+    }
+
+    [Fact]
+    public void HigherSideMonitor_IsReachedWithLadder_AndBackWithRope()
+    {
+        var world = TestWorlds.OffsetHigher();
+        var sim = new Sim(world, seed: 23);
+        sim.Pet.Place(new Vec2(1500, 1040), appear: false);
+        sim.Run(0.5);
+        var ladder = false;
+        var poof = false;
+        sim.Pet.TravelTo(new Vec2(2600, 780), run: false, onArrive: null);
+        sim.Run(40, r => { ladder |= r.Prop is { Kind: WorldPropKind.Ladder }; poof |= r.State == BehaviorState.Vanishing; });
+        Assert.True(ladder, "expected a ladder");
+        Assert.False(poof, "should not teleport");
+        Assert.Equal("B", world.MonitorAt(sim.Pet.Feet)!.Id);
+        Assert.Equal(780, sim.Pet.Feet.Y, 1);
+
+        var rope = false;
+        sim.Pet.TravelTo(new Vec2(800, 1040), run: false, onArrive: null);
+        sim.Run(40, r => rope |= r.Prop is { Kind: WorldPropKind.Rope });
+        Assert.True(rope, "expected a rope");
+        Assert.Equal("A", world.MonitorAt(sim.Pet.Feet)!.Id);
+    }
+
+    [Fact]
+    public void PanelActivities_UseAccessories_AndPutThemAway()
+    {
+        var world = TestWorlds.Single();
+        var sim = new Sim(world, seed: 22);
+        sim.Settings.AutonomousBehavior = false;
+        sim.Run(1);
+        sim.Pet.SetPanelActivity(PanelActivity.Laptop);
+        sim.Run(3);
+        Assert.Equal(BehaviorState.Activity, sim.Pet.State);
+        Assert.Equal(AnimClip.LaptopType, sim.Last.Clip);
+        Assert.True(sim.Last.Pose.PropLaptop > 0.9);
+        sim.Pet.SetPanelActivity(PanelActivity.Backpack);
+        sim.Run(4);
+        Assert.Equal(AnimClip.SearchBackpack, sim.Last.Clip);
+        Assert.True(sim.Last.Pose.PropBackpack > 0.9 && sim.Last.Pose.PropLaptop < 0.01);
+        sim.Pet.ItemPresented();
+        sim.Run(0.3);
+        Assert.Equal(AnimClip.PresentItem, sim.Last.Clip);
+        sim.Run(2);
+        Assert.Equal(AnimClip.SearchBackpack, sim.Last.Clip);
+        sim.Pet.SetPanelActivity(PanelActivity.None);
+        sim.Run(2);
+        Assert.NotEqual(BehaviorState.Activity, sim.Pet.State);
+        Assert.True(sim.Last.Pose.PropBackpack < 0.01);
     }
 
     [Fact]

@@ -94,6 +94,7 @@ public sealed class QaRunner
         {
             var hood = pet.Transform.LocalToWorld(new Vec2(272, 140));
             _host.CursorOverride = hood;
+            _host.ButtonOverride = true;
             Check(pet.BeginGrab(hood), "grab by the hood starts");
             MoveCursor(hood, hood + new Vec2(-world.Primary.Scale * 60, -world.Primary.Scale * 200), 0.6);
         });
@@ -109,6 +110,7 @@ public sealed class QaRunner
         });
         At(6.47, "release", () =>
         {
+            _host.ButtonOverride = false;
             pet.EndGrab(_host.CursorOverride!.Value);
             Check(pet.State == BehaviorState.Airborne && pet.Physics.Velocity.Length > 200, $"release gives throw velocity ({pet.Physics.Velocity.Length:0} px/s)");
             _host.CursorOverride = far;
@@ -119,6 +121,20 @@ public sealed class QaRunner
             Check(_seenStates.Contains(BehaviorState.Landing), "lands after the throw");
             Check(world.MonitorAt(pet.Feet) is not null, "still inside the world after the throw");
             SnapPet("05-landed");
+        });
+        At(9.3, "sticky-grab", () =>
+        {
+            // Regression: a lost button-up must never leave Hoodie stuck to the cursor.
+            var hood = pet.Transform.LocalToWorld(new Vec2(272, 140));
+            _host.CursorOverride = hood;
+            _host.ButtonOverride = true;
+            pet.BeginGrab(hood);
+        });
+        At(9.55, "button-up", () => _host.ButtonOverride = false);
+        At(9.85, "sticky-check", () =>
+        {
+            Check(pet.State != BehaviorState.Grabbed, "releasing the mouse button always drops Hoodie (no sticking)");
+            _host.CursorOverride = far;
         });
         At(10.0, "give file", () =>
         {
@@ -144,6 +160,23 @@ public sealed class QaRunner
             At(t, "page " + page, () => _host.Panel.Show(page));
             At(t + (page == PanelPage.PcStatus ? 1.1 : 0.6), "snap " + page, () => SnapWindow(_host.Panel, $"{9 + Array.IndexOf(pages, page):00}-panel-{page.ToString().ToLowerInvariant()}"));
         }
+        At(14.9, "backpack-prop", () =>
+        {
+            Check(_host.LastRender.Pose.PropBackpack > 0.5, "Backpack page: Hoodie opens its backpack");
+            SnapPet("09b-backpack-pet");
+        });
+        At(17.75, "timer-input", () =>
+        {
+            _timerBox = FindAll<System.Windows.Controls.TextBox>(_host.Panel).FirstOrDefault(t => t.Text == "10");
+            if (_timerBox is not null) _timerBox.Text = "3";
+        });
+        At(18.7, "timer-input-check", () =>
+            Check(_timerBox is not null && _timerBox.Text == "3" && _timerBox.IsVisible, "timer: typed minutes are kept while the countdown refreshes"));
+        At(19.95, "laptop", () =>
+        {
+            Check(pet.State == BehaviorState.Activity && pet.ActivityName == "laptop", "PC Status page: Hoodie sits down with its laptop");
+            SnapPet("13b-laptop-pet");
+        });
         At(21.5, "close panel", () => _host.Panel.Close(animated: false));
         At(22.0, "remove", () =>
         {
@@ -211,12 +244,28 @@ public sealed class QaRunner
         }
         At(world.Monitors.Count > 1 ? 76 : 61, "report", Finish);
 
+        // Steps run in time order regardless of the order they were declared in.
+        var ordered = _steps.Select((st, i) => (st, i)).OrderBy(x => x.st.At).ThenBy(x => x.i).Select(x => x.st).ToList();
+        _steps.Clear();
+        _steps.AddRange(ordered);
         _watch.Start();
         _timer.Start();
         Log.Info("QA scenario started, output: " + _out);
     }
 
     private (TimeSpan Cpu, double At) _cpuStart;
+    private System.Windows.Controls.TextBox? _timerBox;
+
+    private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T t) yield return t;
+            foreach (var x in FindAll<T>(child)) yield return x;
+        }
+    }
 
     private void MoveCursor(Vec2 from, Vec2 to, double seconds)
     {

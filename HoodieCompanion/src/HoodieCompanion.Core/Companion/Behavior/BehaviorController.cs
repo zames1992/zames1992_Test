@@ -19,6 +19,11 @@ public enum Activity
     StayNearUser,
     ChaseCursor,
     GoRestSpot,
+    ReadBook,
+    UseLaptop,
+    WriteNotes,
+    Dance,
+    JumpForJoy,
 }
 
 public readonly record struct DecisionContext(
@@ -55,6 +60,8 @@ public sealed class BehaviorController
                 w[Activity.Sleep] = 0.6 + sleepy;
                 w[Activity.InspectBackpack] = c.HasItems ? 0.4 : 0;
                 w[Activity.Stretch] = 0.15;
+                w[Activity.ReadBook] = c.AtRestSpot ? 2.5 : 0;
+                w[Activity.UseLaptop] = c.AtRestSpot ? 2.0 : 0;
                 break;
             case PresenceMode.Quiet:
                 w[Activity.Sit] = 3;
@@ -63,6 +70,9 @@ public sealed class BehaviorController
                 w[Activity.Stretch] = 0.3;
                 w[Activity.Wander] = 0.35;
                 w[Activity.LookAround] = 0.5;
+                w[Activity.ReadBook] = 2.2;
+                w[Activity.UseLaptop] = 1.2;
+                w[Activity.WriteNotes] = 0.6;
                 break;
             case PresenceMode.Company:
                 w[Activity.StayNearUser] = 3 + d.SocialInterest * 2;
@@ -70,6 +80,9 @@ public sealed class BehaviorController
                 w[Activity.LookAround] = 1.2;
                 w[Activity.Stretch] = 0.3;
                 w[Activity.Sleep] = sleepy * 0.6;
+                w[Activity.ReadBook] = 0.8;
+                w[Activity.UseLaptop] = 0.8;
+                w[Activity.Dance] = 0.3;
                 break;
             case PresenceMode.Play:
                 w[Activity.ChaseCursor] = c.CursorNearFloor ? 3.5 : 0;
@@ -79,6 +92,8 @@ public sealed class BehaviorController
                 w[Activity.Explore] = c.CanExplore ? 0.8 + d.Curiosity : 0;
                 w[Activity.PeekEdge] = c.NearEdge ? 0.6 : 0;
                 w[Activity.Sit] = 0.3;
+                w[Activity.Dance] = c.ReducedMotion ? 0 : 1.2;
+                w[Activity.JumpForJoy] = c.ReducedMotion ? 0 : 0.8;
                 break;
             default: // Normal
                 w[Activity.Wander] = 2.2 + d.Curiosity;
@@ -91,6 +106,11 @@ public sealed class BehaviorController
                 w[Activity.InspectBackpack] = c.HasItems ? 0.35 : 0;
                 w[Activity.Explore] = c.CanExplore ? 0.3 + d.Curiosity * 0.8 : 0;
                 w[Activity.Hop] = c.ReducedMotion ? 0 : 0.1 + d.Playfulness * 0.2;
+                w[Activity.ReadBook] = 0.7 + (1 - d.Energy) * 0.5;
+                w[Activity.UseLaptop] = 0.6 + d.Curiosity * 0.4;
+                w[Activity.WriteNotes] = 0.4;
+                w[Activity.Dance] = c.ReducedMotion ? 0 : 0.15 + d.Playfulness * 0.3;
+                w[Activity.JumpForJoy] = c.ReducedMotion ? 0 : 0.1;
                 break;
         }
         return w;
@@ -115,8 +135,8 @@ public sealed class BehaviorController
     {
         PresenceMode.Play => 1.0 + _rng.NextDouble() * 2.5,
         PresenceMode.Focus => 20 + _rng.NextDouble() * 30,
-        PresenceMode.Quiet => 12 + _rng.NextDouble() * 20,
+        PresenceMode.Quiet => 8 + _rng.NextDouble() * 12,
         PresenceMode.Company => 4 + _rng.NextDouble() * 6,
-        _ => 3 + _rng.NextDouble() * 7,
+        _ => 2 + _rng.NextDouble() * 4.5,
     };
 }

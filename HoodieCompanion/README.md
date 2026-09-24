@@ -15,6 +15,8 @@ remember something, it holds up the note when the time comes; you want space, it
 
 If Windows SmartScreen warns (the exe is not code-signed): **More info → Run anyway**.
 
+**Languages:** English and Russian (Settings → Language; "Automatic" follows Windows).
+
 **Supported:** Windows 10 (1809+) and Windows 11, x64. Per-monitor DPI and multiple monitors in any arrangement
 (including monitors above/below or at negative coordinates).
 
@@ -27,7 +29,7 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 | **Right click** | Commands card: Stay here / Go home / Set Home / Show backpack / Be quiet / Let's play / Leave me alone / Territory / Settings / Hide |
 | **Drag Hoodie** | Pick it up (the hood is the natural handle). The hood follows your pointer first, the body swings behind it, legs dangle |
 | **Swing and release** | Hoodie is thrown with your pointer's velocity, flies (also onto another monitor), lands, dusts itself off and looks at you |
-| **Drop files / folders / apps / links on Hoodie** | It notices, catches, inspects and tucks the item into its **Backpack** (hoodie pocket) |
+| **Drop files / folders / apps / links on Hoodie or on the open Backpack page** | It notices, catches, inspects and puts the item into its **backpack** |
 | **Tray icon** | Left click: panel (or show Hoodie if hidden). Right click: full menu incl. **Hide Hoodie** and **Exit** |
 | **Ctrl + Alt + H** | Emergency hide / show, instantly |
 
@@ -35,25 +37,29 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 
 ![Panels](docs/qa/panels.png)
 
-* **Backpack** — everything you gave Hoodie: search, pinned items first; click to open; `⋯` → Rename / Show in folder /
-  Remove; `+` → add file / folder / link. Hoodie stores *references* only: it never copies, moves or deletes your files,
+![Panels in Russian](docs/qa/panels-ru.png)
+
+* **Backpack** — an inventory grid with slots: everything you gave Hoodie (shortcuts, files, folders, apps, links).
+  Drop things onto the page or onto Hoodie; click a slot to open it; right-click a slot → Open / Pin to the front / Rename /
+  Show in folder / Remove; `+` or an empty slot → add file / folder / link. While the page is open Hoodie holds its
+  backpack open and rummages in it. Hoodie stores *references* only: it never copies, moves or deletes your files,
   and removing an item only removes Hoodie's reference. If a file has moved, Hoodie searches, shrugs, and offers
   **Locate… / Remove reference / Cancel**.
-* **Notes** — "Remember this for me…": small things Hoodie keeps (tick off or delete).
+* **Notes** — "Remember this for me…": Hoodie pulls out a notebook and writes while the page is open.
 * **Reminder** — "in N minutes" or "at HH:mm". When due, Hoodie holds the note above its head and a small card offers
   **Done** / **Snooze 10 min**.
 * **Timer** — 5 / 15 / 25 / 45 min or custom. Hoodie watches the clock and hops when it's done.
-* **PC Status** — CPU, RAM, disk activity, network ↓/↑, uptime and Hoodie's own CPU/RAM, sampled locally once per
-  second. Under sustained heavy load Hoodie may fan itself (at most once per 10 minutes) — it never nags.
+* **PC Status** — Hoodie sits down with its laptop and types while you look at CPU, memory, disk and network bars with
+  60-second graphs, uptime and Hoodie's own CPU/RAM, sampled locally once per second. Under sustained heavy load Hoodie may fan itself (at most once per 10 minutes) — it never nags.
 * **Presence** chips and **Ask Hoodie** commands (see below), **Settings**.
 
 ## Presence modes (you decide; Hoodie never guesses your mood)
 
 | Mode | Behavior |
 |---|---|
-| **Normal** | Balanced: wanders, rests, explores other monitors, peeks over edges, naps |
+| **Normal** | Balanced: wanders, explores other monitors (ladder up, rope down), reads a book, works on its laptop, writes notes, peeks over edges, naps |
 | **Company** | Stays near your pointer, sits nearby, looks at you now and then — no interruptions |
-| **Play** | Chases the pointer along the floor, runs, hops |
+| **Play** | Chases the pointer along the floor, runs, hops, dances |
 | **Focus** | "We both do our own work": goes Home / to a Quiet area / to the far corner (another monitor if possible), sits quietly, no games, no surprises |
 | **Quiet** | Visible but calm: sits, sleeps, looks through its pocket |
 | **Alone** ("Leave me alone") | Waves, walks off the nearest outer screen edge and stays away. **Come back** (panel, tray or commands) brings it back through the same edge |

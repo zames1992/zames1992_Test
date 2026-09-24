@@ -29,13 +29,25 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   next to it twice; it does not detect menus, dialogs or text carets under it.
 * **Focus mode "avoid active work area"** = go Home / to a Quiet area / to the monitor corner farthest from the
   pointer, preferring a monitor without the foreground window. It does not track the exact caret.
-* Monitor above/below travel uses a jump (up) or a drop (down) and needs ≥ 2 body-widths of horizontal overlap;
-  otherwise Hoodie uses an explicit shrink-out / grow-in transition ("poof") instead of walking.
+* Monitors above / higher: Hoodie props up a ladder and climbs; below / lower: it ties a rope and climbs down.
+  Monitors that only touch diagonally (no shared edge, < 2 body-widths of overlap) still use an explicit
+  shrink-out / grow-in transition ("poof").
 * Reminders support "in N minutes" and "at HH:mm" (next occurrence). No recurring reminders.
 * The shell icon of a `.lnk` is shown, but the shortcut target is not resolved for display.
 * Territory regions are stored relative to their monitor's working area; if a monitor is disconnected its
   regions are kept but ignored until it returns.
 * The first-run welcome card and all UI text are English only.
+
+## Fixed after the first user test (v1.1)
+
+* Hoodie could stay stuck to the cursor (a lost mouse-button-up kept mouse capture, so nothing else could be clicked,
+  settings sliders did not work, and after "Come back" it seemed to fly in circles). The real button state is now polled
+  every frame; releasing the button always drops Hoodie. Covered by an automated QA check.
+* Throwing onto another monitor did not work for the same reason (release not seen → no throw velocity).
+* Timer / reminder inputs were reset every second → pages are built once; only countdowns refresh.
+* The Backpack page closed when you switched to Explorer to drag files → working pages no longer auto-close, and the
+  panel itself accepts drops.
+* Monitors above/below: jump + teleport replaced by ladder / rope climbing.
 
 ## Visual
 

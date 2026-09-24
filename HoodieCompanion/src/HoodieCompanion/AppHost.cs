@@ -38,6 +38,7 @@ public sealed class AppHost : IDisposable
     private readonly EnvironmentInterpreter _environment = new();
     private readonly HashSet<string> _recentProcesses = new(StringComparer.OrdinalIgnoreCase);
     private PetWindow _petWindow = null!;
+    private WorldPropWindow _propWindow = null!;
     private QuickPanel _panel = null!;
     private AlertCard _alerts = null!;
     private TrayIcon? _tray;
@@ -94,6 +95,7 @@ public sealed class AppHost : IDisposable
     public bool EmergencyHidden { get; private set; }
     public RectD PetBoundsPx { get; private set; }
     public event Action<SystemStatus>? SystemStatusUpdated;
+    public SystemHistory History { get; } = new();
     public QuickPanel Panel => _panel;
     public PetWindow PetWindow => _petWindow;
     public FrameClock Clock => _clock;
@@ -106,7 +108,9 @@ public sealed class AppHost : IDisposable
 
     public void Start()
     {
+        L.Set(Settings.Language);
         _petWindow = new PetWindow();
+        _propWindow = new WorldPropWindow();
         _panel = new QuickPanel(this);
         _alerts = new AlertCard(this);
 
@@ -175,9 +179,9 @@ public sealed class AppHost : IDisposable
     private void ShowWelcome()
     {
         _alerts.Enqueue(new AlertRequest(
-            "Hi, I'm Hoodie.",
-            "I live down here now. Click me for my panel, pick me up by the hood (I don't mind being thrown), or drop files on me and I'll keep them in my pocket. Right-click for commands. Ctrl+Alt+H hides me instantly.",
-            new[] { new AlertAction("Got it", () => { }, true) },
+            L.T("Hi, I'm Hoodie."),
+            L.T("I live down here now. Click me for my panel, pick me up by the hood (I don't mind being thrown), or drop files on me and I'll keep them in my backpack. Right-click for commands. Ctrl+Alt+H hides me instantly."),
+            new[] { new AlertAction(L.T("Got it"), () => { }, true) },
             Icon: Ui.Icons.Hand));
         Settings.FirstRunDone = true;
         SaveSettings();
@@ -191,11 +195,19 @@ public sealed class AppHost : IDisposable
         try
         {
             if (EmergencyHidden) return;
+            // Safety net: if the real button is up, no press or grab may survive (lost button-up messages,
+            // capture stolen by another window, etc.). This is what keeps Hoodie from sticking to the cursor.
+            var buttonDown = ButtonOverride ?? MouseService.LeftButtonDown();
+            if (!buttonDown)
+            {
+                if (_petWindow.IsPressed) _petWindow.CancelPress(notifyRelease: true);
+                if (Pet.State == BehaviorState.Grabbed) Pet.EndGrab(CursorOverride ?? MouseService.Cursor());
+            }
             var input = new PetInput
             {
                 Dt = dt,
                 Cursor = CursorOverride ?? MouseService.Cursor(),
-                LeftButtonDown = ButtonOverride ?? MouseService.LeftButtonDown(),
+                LeftButtonDown = buttonDown,
                 UserIdleSeconds = _userIdle,
                 FullscreenMonitorId = _foreground.FullscreenMonitorId,
                 ForegroundRule = _foregroundRule,
@@ -204,6 +216,7 @@ public sealed class AppHost : IDisposable
             var rs = Pet.Update(input);
             _last = rs;
             PetBoundsPx = rs.Visible ? rs.Transform.Bounds(RigTransform.BodyLocal) : FallbackBounds();
+            _propWindow.Render(rs.Visible ? rs.Prop : null, Settings.AlwaysOnTop);
             _petWindow.Render(rs, Settings.Scale, Settings.AlwaysOnTop, Settings.ReducedMotion);
             if (_alerts.IsShowing && (_frameCount++ % 6) == 0) _alerts.Place();
 
@@ -297,6 +310,7 @@ public sealed class AppHost : IDisposable
 
     private void OnSystemStatus(SystemStatus s)
     {
+        History.Add(s);
         var mood = _environment.Feed(s, 1);
         if (mood != EnvironmentMood.Calm) Pet.Environment(mood);
         SystemStatusUpdated?.Invoke(s);
@@ -348,6 +362,7 @@ public sealed class AppHost : IDisposable
             _panel.Close(animated: false);
             _alerts.Hide();
             _petWindow.Hide();
+            _propWindow.Render(null, false);
             _clock.SetMode(FrameRateMode.Idle);
             Log.Info("emergency hide");
         }
@@ -396,13 +411,13 @@ public sealed class AppHost : IDisposable
         {
             Pet.ItemMissing();
             _alerts.Enqueue(new AlertRequest(
-                "It's not there anymore",
-                $"\"{item.DisplayName}\" isn't where Hoodie left it:\n{item.Target}",
+                L.T("It's not there anymore"),
+                L.F("\"{0}\" isn't where Hoodie left it:\n{1}", item.DisplayName, item.Target),
                 new[]
                 {
-                    new AlertAction("Cancel", () => { }),
-                    new AlertAction("Remove reference", () => RemoveItem(item)),
-                    new AlertAction("Locate…", () => Locate(item), true),
+                    new AlertAction(L.T("Cancel"), () => { }),
+                    new AlertAction(L.T("Remove reference"), () => RemoveItem(item)),
+                    new AlertAction(L.T("Locate…"), () => Locate(item), true),
                 }, Icon: Ui.Icons.Backpack));
             return;
         }
@@ -414,8 +429,8 @@ public sealed class AppHost : IDisposable
         else
         {
             Pet.Feedback(AnimClip.Error);
-            _alerts.Enqueue(new AlertRequest("Couldn't open it", error ?? "Windows refused to open this item.",
-                new[] { new AlertAction("OK", () => { }, true) }, Icon: Ui.Icons.Backpack));
+            _alerts.Enqueue(new AlertRequest(L.T("Couldn't open it"), error ?? L.T("Windows refused to open this item."),
+                new[] { new AlertAction(L.T("OK"), () => { }, true) }, Icon: Ui.Icons.Backpack));
         }
     }
 
@@ -424,12 +439,12 @@ public sealed class AppHost : IDisposable
         string? path = null;
         if (item.Type == InventoryItemType.Folder)
         {
-            var dlg = new OpenFolderDialog { Title = "Where is " + item.DisplayName + "?" };
+            var dlg = new OpenFolderDialog { Title = L.F("Where is {0}?", item.DisplayName) };
             if (dlg.ShowDialog() == true) path = dlg.FolderName;
         }
         else
         {
-            var dlg = new OpenFileDialog { Title = "Where is " + item.DisplayName + "?", FileName = Path.GetFileName(item.Target) };
+            var dlg = new OpenFileDialog { Title = L.F("Where is {0}?", item.DisplayName), FileName = Path.GetFileName(item.Target) };
             if (dlg.ShowDialog() == true) path = dlg.FileName;
         }
         if (path is null) return;
@@ -450,7 +465,7 @@ public sealed class AppHost : IDisposable
     public void AddNote(string text)
     {
         if (Notes.Add(text) is null) return;
-        Pet.ItemReceived(alreadyHad: false);
+        Pet.Feedback(AnimClip.Success);
     }
 
     public void AddReminder(string text, DateTime due)
@@ -461,19 +476,24 @@ public sealed class AppHost : IDisposable
 
     public void StartTimer(TimeSpan duration)
     {
-        Timers.Start(duration, DateTime.Now);
+        Timers.Start(duration, DateTime.Now, L.F("{0} timer", FormatDuration(duration)));
         Pet.Feedback(AnimClip.Success);
     }
+
+    public static string FormatDuration(TimeSpan d) =>
+        d.TotalHours >= 1 ? L.F("{0} h {1} min", (int)d.TotalHours, d.Minutes)
+        : d.TotalMinutes >= 1 ? L.F("{0} min", Math.Round(d.TotalMinutes, 1))
+        : L.F("{0} s", (int)d.TotalSeconds);
 
     private void OnReminderDue(Reminder r)
     {
         Pet.StartAlert(AlertKind.Reminder);
         Sound.Play(SoundCue.Reminder);
-        _alerts.Enqueue(new AlertRequest("You asked me to remind you", r.Text,
+        _alerts.Enqueue(new AlertRequest(L.T("You asked me to remind you"), r.Text,
             new[]
             {
-                new AlertAction("Snooze 10 min", () => { Reminders.Snooze(r.Id, TimeSpan.FromMinutes(10), DateTime.Now); Pet.EndAlert(); }),
-                new AlertAction("Done", () => { Reminders.Complete(r.Id); Pet.EndAlert(); }, true),
+                new AlertAction(L.T("Snooze 10 min"), () => { Reminders.Snooze(r.Id, TimeSpan.FromMinutes(10), DateTime.Now); Pet.EndAlert(); }),
+                new AlertAction(L.T("Done"), () => { Reminders.Complete(r.Id); Pet.EndAlert(); }, true),
             }, OnDismissed: () => Pet.EndAlert()));
     }
 
@@ -481,11 +501,11 @@ public sealed class AppHost : IDisposable
     {
         Pet.StartAlert(AlertKind.Timer);
         Sound.Play(SoundCue.Timer);
-        _alerts.Enqueue(new AlertRequest("Time's up", $"Your {t.Label} is done.",
+        _alerts.Enqueue(new AlertRequest(L.T("Time's up"), L.F("Your {0} is done.", t.Label),
             new[]
             {
-                new AlertAction("+5 min", () => { Timers.Acknowledge(t.Id); Timers.Start(TimeSpan.FromMinutes(5), DateTime.Now, t.Label); Pet.EndAlert(); }),
-                new AlertAction("OK", () => { Timers.Acknowledge(t.Id); Pet.EndAlert(); }, true),
+                new AlertAction(L.T("+5 min"), () => { Timers.Acknowledge(t.Id); Timers.Start(TimeSpan.FromMinutes(5), DateTime.Now, L.F("{0} timer", FormatDuration(TimeSpan.FromMinutes(5)))); Pet.EndAlert(); }),
+                new AlertAction(L.T("OK"), () => { Timers.Acknowledge(t.Id); Pet.EndAlert(); }, true),
             }, OnDismissed: () => Pet.EndAlert(), Icon: Ui.Icons.Timer));
     }
 
@@ -536,6 +556,7 @@ public sealed class AppHost : IDisposable
     public void SettingsChanged()
     {
         Settings.Normalize();
+        L.Set(Settings.Language);
         _petWindow.Topmost = Settings.AlwaysOnTop;
         if (!Settings.AlwaysOnTop) WindowInterop.ClearTopmost(_petWindow.Hwnd);
         SaveSettings();

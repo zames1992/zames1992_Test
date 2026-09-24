@@ -49,7 +49,7 @@ measurements; its silhouette overlaps the reference silhouette with **IoU ≈ 0.
 3. Two sleeves, two dark cropped trouser legs, two cream socks, two dark sneakers with cream soles and three stripes.
 4. Big head (~40 % of height), short legs, stout body — the chibi proportion never changes.
 5. Thick dark outline with round joins; flat fills; no gradients, no textures, no highlights.
-6. No accessories, no extra clothing, no patterns, no colours beyond the table above.
+6. No permanent accessories, no extra clothing, no patterns; props appear only while an activity uses them.
 7. The whole body is always present (no cropping, no missing parts), same scale, feet registered to the ground.
 
 ## How the rig preserves identity
@@ -70,7 +70,7 @@ measurements; its silhouette overlaps the reference silhouette with **IoU ≈ 0.
 | Adaptation | Why |
 |---|---|
 | Ground shadow drawn at 42 % opacity and hidden while airborne | An opaque dark ellipse reads as a hole on real wallpapers; the shadow belongs to the ground, not to the flying body |
-| "Backpack" is Hoodie's hoodie pocket (no backpack drawn) | The bible forbids adding accessories; objects are tucked into the hoodie |
+| **Accessories only during activities** (backpack, laptop, book, notebook + pencil; ladder and rope in the world) | Requested by the user after the first test: they appear only while an animation uses them and are put away afterwards; the character itself is never redesigned. Drawn in the same flat style (same outline, muted warm colours) |
 | A small cream note card appears only when Hoodie holds an object (catch / inspect / reminders) | Needed to communicate "an object" diegetically; it is a prop, not clothing |
 | Tiny marks next to the head (`!`, `?`, `…`, `Zzz`, sparkles, dust, heat lines) | Communicate reactions without adding facial features |
 | Mild squash & stretch on landings/jumps (disabled by Reduced Motion) | Physical readability; proportions return exactly to rest |

@@ -9,6 +9,7 @@ using System.Windows.Shapes;
 using HoodieCompanion.Geometry;
 using HoodieCompanion.Platform;
 using HoodieCompanion.Presence;
+using static HoodieCompanion.UI.L;
 
 namespace HoodieCompanion.UI;
 
@@ -41,10 +42,10 @@ public sealed class TerritoryEditor
 
     public static string LabelFor(RegionType t) => t switch
     {
-        RegionType.Free => "Allowed",
-        RegionType.Quiet => "Quiet",
-        RegionType.PassThrough => "Pass through",
-        _ => "Never enter",
+        RegionType.Free => T("Allowed"),
+        RegionType.Quiet => T("Quiet"),
+        RegionType.PassThrough => T("Pass through"),
+        _ => T("Never enter"),
     };
 
     public void Open()
@@ -93,24 +94,24 @@ public sealed class TerritoryEditor
             Topmost = true,
             ShowInTaskbar = false,
             ResizeMode = ResizeMode.NoResize,
-            Width = 640,
+            Width = 700,
             Height = 170,
             FontFamily = Ui.Font,
         };
-        var title = Ui.Text("Where may Hoodie go? Drag on any screen to mark an area.", 14, weight: FontWeights.SemiBold);
+        var title = Ui.Text(T("Where may Hoodie go? Drag on any screen to mark an area."), 14, weight: FontWeights.SemiBold);
         var chips = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        foreach (var (tool, label) in new[] { (Tool.Free, "Allowed"), (Tool.Quiet, "Quiet"), (Tool.PassThrough, "Pass through"), (Tool.NoGo, "Never enter"), (Tool.Erase, "Erase"), (Tool.Home, "Set Home (click)") })
+        foreach (var (tool, label) in new[] { (Tool.Free, T("Allowed")), (Tool.Quiet, T("Quiet")), (Tool.PassThrough, T("Pass through")), (Tool.NoGo, T("Never enter")), (Tool.Erase, T("Erase")), (Tool.Home, T("Set Home (click)")) })
         {
             var t = tool;
             chips.Children.Add(Ui.Chip(label, _tool == tool, "tool", () => _tool = t));
         }
-        var done = Ui.Button("Done", Close, "AccentButton");
-        var clear = Ui.Button("Clear all areas", () => { _host.Territory.Data.Regions.Clear(); RedrawAll(); });
+        var done = Ui.Button(T("Done"), Close, "AccentButton");
+        var clear = Ui.Button(T("Clear all areas"), () => { _host.Territory.Data.Regions.Clear(); RedrawAll(); });
         clear.Margin = new Thickness(0, 0, 8, 0);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(clear);
         buttons.Children.Add(done);
-        var hint = Ui.Text("Areas override the per-monitor rule (Settings). Esc closes.", 11.5, dim: true);
+        var hint = Ui.Text(T("Areas override the per-monitor rule (Settings). Esc closes."), 11.5, dim: true);
         var sp = new StackPanel { Margin = new Thickness(18, 14, 18, 14) };
         sp.Children.Add(title);
         sp.Children.Add(chips);
@@ -161,7 +162,7 @@ public sealed class TerritoryEditor
             var t = _ed._host.Territory;
             var rule = t.MonitorRule(_mon.Id);
 
-            var label = Ui.Text($"{_mon.DisplayName} · whole monitor: {LabelFor(rule)}", 13, weight: FontWeights.SemiBold);
+            var label = Ui.Text(F("Monitor {0}", _mon.Index + 1) + " · " + F("whole monitor: {0}", LabelFor(rule)), 13, weight: FontWeights.SemiBold);
             label.Foreground = Brushes.White;
             Canvas.SetLeft(label, 18);
             Canvas.SetTop(label, 14);

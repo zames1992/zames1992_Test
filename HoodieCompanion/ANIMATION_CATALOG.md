@@ -29,7 +29,7 @@ in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb c
 | SleepStart | Getting drowsy, eyes closing. | Very low energy, long user inactivity, PC sleep | User inactivity / drive | One-shot | 1.2 s | 15 | Yes | — | SitIdle | SleepLoop |
 | SleepLoop | Asleep. The world is quiet. | After SleepStart | User inactivity / drive | Loop | loop | 12 | Yes | — | SleepStart | WakeUp |
 | WakeUp | Wakes up, small stretch. | User returns, click, drive | User input | One-shot | 1.1 s | 30 | No | — | SleepLoop | SitIdle / StandUp |
-| Stretch | Stretches after staying still. | Long idle | Internal drive | One-shot | 1.6 s | 20 | Yes | 45 s | Idle | Idle |
+| Stretch | Stretches after staying still. | Long idle | Internal drive | One-shot | 1.3 s | 20 | Yes | 45 s | Idle | Idle |
 | Yawn | Getting a bit sleepy. | Low energy | Internal drive | One-shot | 1.4 s | 20 | Yes | 60 s | Idle | Idle |
 
 ## Cursor
@@ -39,7 +39,7 @@ in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb c
 | LookCursor | Notices the user's hand nearby. | Cursor within look radius (overlay) | Cursor position | Loop | loop | 0 | Yes | — | Overlay | Overlay fades |
 | FollowCursor | Chasing the user's hand for fun. | Play mode, cursor near the ground | Cursor position | Loop | loop | 40 | Yes | — | Run | Idle |
 | Curious | What is that hand doing here? | Cursor hovers close for >1.5 s | Cursor position | One-shot | 1.3 s | 20 | Yes | 12 s | Head tilt | Idle |
-| Wave | Friendly hello. | Left click, greeting, goodbye | User input | One-shot | 1.1 s | 25 | Yes | 2 s | Raise arm | Lower arm |
+| Wave | Friendly hello. | Left click, greeting, goodbye | User input | One-shot | 0.9 s | 25 | Yes | 2 s | Raise arm | Lower arm |
 | Surprised | Startled by a fast approaching hand. | Cursor rushes towards Hoodie | Cursor velocity | One-shot | 0.7 s | 30 | Yes | 15 s | Small hop | Idle |
 
 ## Physical
@@ -57,12 +57,12 @@ in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb c
 | Name | Narrative meaning | Trigger | System cause | Loop | Duration | Priority | Interruptible | Cooldown | Entry | Exit |
 |---|---|---|---|---|---|---|---|---|---|---|
 | NoticeItem | Something is coming towards it! | Drag enters Hoodie | OLE drag-enter | One-shot | 0.35 s | 60 | Yes | — | Look up | CatchItem |
-| CatchItem | Catches the object the user gives it. | Drop on Hoodie | OLE drop | One-shot | 0.35 s | 60 | No | — | Arms up | InspectItem |
-| InspectItem | Looks at the new object. | After catch | Inventory add | One-shot | 0.5 s | 60 | No | — | Holding item | PutInBackpack |
-| PutInBackpack | Tucks it into its hoodie pocket for safe keeping. | After inspect | Inventory stored | One-shot | 0.45 s | 60 | No | — | Item to pocket | Idle (sparkle) |
-| OpenBackpack | Opens its pocket to show what it keeps. | Backpack panel opens | User opened Backpack | One-shot | 0.5 s | 55 | Yes | — | Hands to pocket | SearchBackpack |
-| SearchBackpack | Rummages in its pocket. | Backpack open / idle inventory check | Backpack UI / drive | Loop | loop | 50 | Yes | — | OpenBackpack | PresentItem / Idle |
-| PresentItem | Hands the requested object back to the user. | User opens a Backpack item | Shell launch | One-shot | 0.7 s | 60 | No | — | Item from pocket | Idle |
+| CatchItem | Catches the object the user gives it. | Drop on Hoodie | OLE drop | One-shot | 0.3 s | 60 | No | — | Arms up | InspectItem |
+| InspectItem | Looks at the new object. | After catch | Inventory add | One-shot | 0.3 s | 60 | No | — | Holding item | PutInBackpack |
+| PutInBackpack | Puts it into its backpack for safe keeping. | After inspect | Inventory stored | One-shot | 0.6 s | 60 | No | — | Item to pocket | Idle (sparkle) |
+| OpenBackpack | Swings its backpack round and opens it. | Backpack panel opens | User opened Backpack | One-shot | 0.5 s | 55 | Yes | — | Hands to pocket | SearchBackpack |
+| SearchBackpack | Rummages in the open backpack. | Backpack open / idle inventory check | Backpack UI / drive | Loop | loop | 50 | Yes | — | OpenBackpack | PresentItem / Idle |
+| PresentItem | Takes the requested object out of the backpack and hands it over. | User opens a Backpack item | Shell launch | One-shot | 0.9 s | 60 | No | — | Item from pocket | Idle |
 | MissingItem | Searches and shrugs: the object is gone. | Stored target no longer exists | File missing | One-shot | 1.3 s | 60 | No | — | Search | Shrug |
 
 ## Utility
@@ -92,4 +92,21 @@ in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb c
 | LandMonitor | Arrives on another monitor. | Landing after monitor jump | Monitor geometry | One-shot | 0.36 s | 80 | No | — | Squash | Idle |
 | LeaveScreen | Politely leaves: little wave, walks out. | Leave me alone / fullscreen app | Presence mode | One-shot | 0.9 s | 70 | No | — | Wave | Walk off-screen |
 | ReturnToScreen | Comes back into view. | Come back | Presence mode | One-shot | 0.9 s | 70 | No | — | Walk in | Wave / Idle |
+| PlaceLadder | Pulls out a ladder and props it against the higher part of its world. | Target monitor above / higher neighbour | Monitor geometry | One-shot | 0.8 s | 60 | No | — | Reach up | ClimbLadder |
+| ClimbLadder | Climbs rung by rung. | On the ladder | Monitor geometry | Loop | loop | 60 | No | — | PlaceLadder | Step off at the top |
+| TieRope | Ties a rope at the edge and lets it unroll downwards. | Target monitor below / lower neighbour | Monitor geometry | One-shot | 0.7 s | 60 | No | — | Crouch at edge | ClimbRope |
+| ClimbRope | Slides down the rope hand over hand. | On the rope | Monitor geometry | Loop | loop | 60 | No | — | TieRope | Land at the bottom |
+
+## Accessories
+
+| Name | Narrative meaning | Trigger | System cause | Loop | Duration | Priority | Interruptible | Cooldown | Entry | Exit |
+|---|---|---|---|---|---|---|---|---|---|---|
+| CloseBackpack | Closes the backpack and swings it away. | Backpack panel closed / item stored | Backpack UI | One-shot | 0.35 s | 55 | No | — | Backpack open | Idle |
+| LaptopOpen | Sits down, pulls out a laptop and opens it. | PC Status opened / idle activity | PC Status UI / drive | One-shot | 0.7 s | 45 | No | — | Sitting | LaptopType |
+| LaptopType | Types away, checking how the computer is doing. | PC Status open / idle activity | PC Status UI / drive | Loop | loop | 40 | Yes | — | LaptopOpen | LaptopClose |
+| LaptopClose | Closes the laptop and tucks it away. | PC Status closed / activity over | PC Status UI / drive | One-shot | 0.55 s | 45 | No | — | LaptopType | Sitting |
+| ReadBook | Reads a book, turning a page now and then. | Quiet idle activity | Internal drive | Loop | loop | 20 | Yes | — | Sitting | Sitting |
+| WriteNotes | Writes in a little notebook. | Notes / Reminder opened, idle activity | Notes UI / drive | Loop | loop | 40 | Yes | — | Pull out notebook | Put it away |
+| Dance | A happy little dance. | Play mode / good mood | Internal drive | One-shot | 2.4 s | 20 | Yes | 25 s | Bounce | Idle |
+| JumpForJoy | Jumps for joy. | Success, greeting in Play mode | Utility / drive | One-shot | 0.8 s | 25 | Yes | 8 s | Crouch | Idle |
 

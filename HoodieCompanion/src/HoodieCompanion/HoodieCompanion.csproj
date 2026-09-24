@@ -14,7 +14,7 @@
     <AssemblyName>HoodieCompanion</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\hoodie.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>Hoodie Companion</Product>
     <Company>Hoodie Companion</Company>
     <Description>A small digital creature that lives on your desktop.</Description>

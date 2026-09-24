@@ -44,7 +44,11 @@ public sealed class CharacterRig : Canvas
     }
 
     /// <summary>Paths of the body that accept mouse input (everything but the ground shadow and props).</summary>
-    public IEnumerable<Path> HitParts => _partsByGroup.Where(k => k.Key is not ("shadow" or "item")).SelectMany(k => k.Value);
+    public IEnumerable<Path> HitParts => _partsByGroup.Where(k => IsBodyGroup(k.Key)).SelectMany(k => k.Value);
+
+    private static readonly HashSet<string> PropGroups = new() { "shadow", "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil" };
+
+    private static bool IsBodyGroup(string name) => !PropGroups.Contains(name);
 
     public static string LoadRigJson()
     {
@@ -116,7 +120,7 @@ public sealed class CharacterRig : Canvas
                 RenderTransform = group.Transform,
                 SnapsToDevicePixels = false,
             };
-            if (groupName is "shadow" or "item") path.IsHitTestVisible = false;
+            if (!IsBodyGroup(groupName)) path.IsHitTestVisible = false;
             _baseOpacity[path] = opacity;
             if (!_partsByGroup.TryGetValue(groupName, out var list)) _partsByGroup[groupName] = list = new List<Path>();
             list.Add(path);
@@ -157,6 +161,16 @@ public sealed class CharacterRig : Canvas
         var eyeOpen = Math.Max(0.08, p.EyeOpen);
         Set("eyes", p.LookX * 6, p.LookY * 5, 0, p.EyeScale, p.EyeScale * eyeOpen);
         Set("item", p.ItemDx, p.ItemDy, p.ItemRot, p.ItemScale, p.ItemScale);
+        // Accessories grow slightly as they are pulled out.
+        static double Pop(double a) => 0.7 + 0.3 * Math.Clamp(a, 0, 1);
+        Set("backpack", 0, 10, 0, 1.25 * Pop(p.PropBackpack), 1.25 * Pop(p.PropBackpack));
+        Set("backpackMouth", 0, 0, 0, 1, Math.Clamp(p.BackpackLid, 0.05, 1));
+        Set("backpackLid", 0, 0, 0, 1, 1 - 2 * Math.Clamp(p.BackpackLid, 0, 1));
+        Set("laptop", 0, 0, 0, Pop(p.PropLaptop), Pop(p.PropLaptop));
+        Set("laptopLid", 0, 0, 0, 1, Math.Clamp(p.LaptopLid, 0.05, 1));
+        Set("book", 0, 0, 0, Pop(p.PropBook), Pop(p.PropBook));
+        Set("notebook", 0, 0, 0, Pop(p.PropNotebook), Pop(p.PropNotebook));
+        Set("pencil", 0, 0, 0, Pop(p.PropPencil), Pop(p.PropPencil));
 
         foreach (var g in _order)
         {
@@ -173,6 +187,14 @@ public sealed class CharacterRig : Canvas
 
         SetOpacity("item", p.ItemAlpha);
         SetOpacity("shadow", p.ShadowAlpha);
+        SetOpacity("backpack", p.PropBackpack);
+        SetOpacity("backpackLid", p.PropBackpack);
+        SetOpacity("backpackMouth", p.PropBackpack * Math.Clamp(p.BackpackLid * 1.5, 0, 1));
+        SetOpacity("laptop", p.PropLaptop);
+        SetOpacity("laptopLid", p.PropLaptop);
+        SetOpacity("book", p.PropBook);
+        SetOpacity("notebook", p.PropNotebook);
+        SetOpacity("pencil", p.PropPencil);
         Opacity = p.Opacity;
     }
 

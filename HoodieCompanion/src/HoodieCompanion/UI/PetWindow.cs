@@ -81,9 +81,10 @@ public sealed class PetWindow : Window
         };
         LostMouseCapture += (_, _) =>
         {
-            if (_dragging) Released?.Invoke(MouseService.Cursor());
+            var wasDragging = _dragging;
             _dragging = false;
             _pressed = false;
+            if (wasDragging) Released?.Invoke(MouseService.Cursor());
         };
 
         DragEnter += (_, e) =>
@@ -127,6 +128,20 @@ public sealed class PetWindow : Window
     public event Action<IReadOnlyList<string>>? ItemsDropped;
 
     public bool IsDragging => _dragging;
+    public bool IsPressed => _pressed;
+
+    /// <summary>
+    /// Ends any press/drag and releases mouse capture. Called by the host when it sees (by polling the real
+    /// button state) that the button is up, so a lost WM_LBUTTONUP can never leave Hoodie stuck to the cursor.
+    /// </summary>
+    public void CancelPress(bool notifyRelease)
+    {
+        var wasDragging = _dragging;
+        _pressed = false;
+        _dragging = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        if (wasDragging && notifyRelease) Released?.Invoke(MouseService.Cursor());
+    }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {

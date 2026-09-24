@@ -28,5 +28,12 @@ internal static class TestWorlds
         Mon("B", 1, -1280, 200, 1280, 1024, 1.25, taskbar: 0),
     });
 
+    /// <summary>Monitor B to the right sits 300 px higher (its floor is above A's floor).</summary>
+    public static WorldGeometry OffsetHigher() => new(new[]
+    {
+        Mon("A", 0, 0, 0, 1920, 1080, 1.0, primary: true),
+        Mon("B", 1, 1920, -300, 1920, 1080, 1.0, taskbar: 0),
+    });
+
     public static WorldGeometry Single() => new(new[] { Mon("A", 0, 0, 0, 1920, 1080, 1.0, primary: true) });
 }

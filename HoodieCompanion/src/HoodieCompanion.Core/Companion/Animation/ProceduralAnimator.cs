@@ -352,16 +352,18 @@ public static class ProceduralAnimator
                 break;
             case AnimClip.PutInBackpack:
             {
-                var k = MathUtil.SmoothStep(u);
-                p.ArmLRot = -50 * (1 - k) - 10 * k;
-                p.ArmRRot = 50 * (1 - k) + 10 * k;
-                p.ArmLDy = -30 * (1 - k);
-                p.ArmRDy = -30 * (1 - k);
-                p.ItemAlpha = 1 - MathUtil.SmoothStep((u - 0.5) / 0.5);
-                p.ItemDy = -50 + 110 * k;
-                p.ItemScale = 1 - 0.7 * k;
-                p.LookY = 0.6;
-                fx = u > 0.6 ? PoseEffect.Sparkle : PoseEffect.None;
+                // Backpack swings round and opens, the object goes in, the lid closes.
+                var appear = MathUtil.SmoothStep(u / 0.25);
+                var down = MathUtil.SmoothStep((u - 0.2) / 0.5);
+                var close = MathUtil.SmoothStep((u - 0.75) / 0.25);
+                Hold(ref p, 1, ctx.Time);
+                p.PropBackpack = appear;
+                p.BackpackLid = appear * (1 - close);
+                p.ItemAlpha = 1 - MathUtil.SmoothStep((down - 0.7) / 0.3);
+                p.ItemDy = -50 + 150 * down;
+                p.ItemScale = 1 - 0.35 * down;
+                p.LookY = 0.7;
+                fx = u > 0.75 ? PoseEffect.Sparkle : PoseEffect.None;
                 break;
             }
             case AnimClip.OpenBackpack:
@@ -369,27 +371,42 @@ public static class ProceduralAnimator
             {
                 Idle(ref p, ctx.Time);
                 var k = clip == AnimClip.OpenBackpack ? MathUtil.SmoothStep(u) : 1;
-                var r = clip == AnimClip.SearchBackpack ? Math.Sin(ctx.Time * 9) : 0;
-                p.ArmLRot = (-24 + 6 * r) * k;
-                p.ArmRRot = (24 + 6 * r) * k;
-                p.ArmLDy = -6 * k;
-                p.ArmRDy = -6 * k;
+                var r = clip == AnimClip.SearchBackpack ? Math.Sin(ctx.Time * 7) : 0;
+                Hold(ref p, k, ctx.Time);
+                p.PropBackpack = MathUtil.SmoothStep(k * 1.6);
+                p.BackpackLid = MathUtil.SmoothStep((k - 0.4) / 0.6);
+                if (clip == AnimClip.SearchBackpack)
+                {
+                    // One hand dives into the backpack and rummages.
+                    p.ArmRRot = 34 + 10 * r;
+                    p.ArmRDy = 10 + 8 * Math.Max(0, r);
+                    p.HeadRot = 6 + 2 * r;
+                    p.TorsoRot = 1.5 * r;
+                }
                 p.LookY = 0.8 * k;
-                p.HeadRot = (5 + 2 * r) * k;
-                p.TorsoRot = 1.5 * r * k;
+                break;
+            }
+            case AnimClip.CloseBackpack:
+            {
+                Idle(ref p, ctx.Time);
+                var lid = 1 - MathUtil.SmoothStep(u / 0.4);
+                var fade = 1 - MathUtil.SmoothStep((u - 0.45) / 0.55);
+                Hold(ref p, fade, ctx.Time);
+                p.PropBackpack = fade;
+                p.BackpackLid = lid;
+                p.LookY = 0.5 * fade;
                 break;
             }
             case AnimClip.PresentItem:
             {
-                var up = MathUtil.SmoothStep(u / 0.5);
-                var hold = u > 0.5 ? 1 - MathUtil.SmoothStep((u - 0.8) / 0.2) : 1;
-                p.ItemAlpha = hold;
-                p.ItemDy = 60 - 170 * up;
-                p.ItemScale = 0.4 + 0.6 * up;
-                p.ArmLRot = -45 * up * hold;
-                p.ArmRRot = 45 * up * hold;
-                p.ArmLDy = -30 * up * hold;
-                p.ArmRDy = -30 * up * hold;
+                var up = MathUtil.SmoothStep((u - 0.2) / 0.4);
+                var hold = u > 0.6 ? 1 - MathUtil.SmoothStep((u - 0.85) / 0.15) : 1;
+                Hold(ref p, hold, ctx.Time);
+                p.PropBackpack = 1 - MathUtil.SmoothStep((u - 0.55) / 0.3);
+                p.BackpackLid = p.PropBackpack;
+                p.ItemAlpha = hold * MathUtil.SmoothStep(u / 0.25);
+                p.ItemDy = 60 - 190 * up;
+                p.ItemScale = 0.6 + 0.4 * up;
                 p.LookY = -0.2;
                 fx = u > 0.5 ? PoseEffect.Sparkle : PoseEffect.None;
                 break;
@@ -538,6 +555,156 @@ public static class ProceduralAnimator
                 p.HeadRot = 4 * k;
                 break;
             }
+            // ---------------- CLIMBING ----------------
+            case AnimClip.PlaceLadder:
+            {
+                Idle(ref p, ctx.Time);
+                var k = MathUtil.SmoothStep(u / 0.6);
+                p.ArmLRot = 150 * k;
+                p.ArmRRot = -150 * k;
+                p.ArmLDy = -14 * k;
+                p.ArmRDy = -14 * k;
+                p.LookY = -0.9 * k;
+                p.BodySy = 1 + 0.04 * k;
+                p.LegLDy = -6 * MathUtil.Bump(u);
+                p.LegRDy = -6 * MathUtil.Bump(u);
+                break;
+            }
+            case AnimClip.ClimbLadder:
+            {
+                var s1 = Math.Sin(tau * ctx.WalkPhase);
+                p.ArmLRot = 150 + 22 * s1;
+                p.ArmRRot = -150 + 22 * s1;
+                p.ArmLDy = -14 - 10 * Math.Max(0, s1);
+                p.ArmRDy = -14 - 10 * Math.Max(0, -s1);
+                p.LegLDy = -18 * Math.Max(0, s1);
+                p.LegRDy = -18 * Math.Max(0, -s1);
+                p.LegLRot = 8 * s1;
+                p.LegRRot = -8 * s1;
+                p.RootRot = 2 * s1;
+                p.LookY = -0.7;
+                p.ShadowAlpha = 0;
+                break;
+            }
+            case AnimClip.TieRope:
+            {
+                Idle(ref p, ctx.Time);
+                var k = MathUtil.Bump(u);
+                p.BodySy = 1 - 0.1 * k;
+                p.HeadDy = 8 * k;
+                p.ArmLRot = -10 + 30 * k;
+                p.ArmRRot = 10 - 60 * k + 12 * Math.Sin(t * 20) * k;
+                p.ArmLDy = -10 * k;
+                p.ArmRDy = -10 * k;
+                p.LookY = 0.9;
+                p.LookX = -0.5;
+                break;
+            }
+            case AnimClip.ClimbRope:
+            {
+                var s1 = Math.Sin(tau * ctx.WalkPhase);
+                p.ArmLRot = 165 + 8 * s1;
+                p.ArmRRot = -165 + 8 * s1;
+                p.ArmLDy = -14 - 8 * Math.Max(0, -s1);
+                p.ArmRDy = -14 - 8 * Math.Max(0, s1);
+                p.LegLRot = 10;
+                p.LegRRot = -4;
+                p.LegLDy = -8;
+                p.RootRot = 3 * Math.Sin(ctx.Time * 2.2);
+                p.LookY = 0.8;
+                p.ShadowAlpha = 0;
+                break;
+            }
+
+            // ---------------- ACCESSORIES ----------------
+            case AnimClip.LaptopOpen:
+            case AnimClip.LaptopType:
+            case AnimClip.LaptopClose:
+            {
+                Sit(ref p, 1, ctx.Time);
+                double show, lid;
+                if (clip == AnimClip.LaptopOpen) { show = MathUtil.SmoothStep(u / 0.45); lid = MathUtil.SmoothStep((u - 0.4) / 0.6); }
+                else if (clip == AnimClip.LaptopClose) { lid = 1 - MathUtil.SmoothStep(u / 0.5); show = 1 - MathUtil.SmoothStep((u - 0.45) / 0.55); }
+                else { show = 1; lid = 1; }
+                p.PropLaptop = show;
+                p.LaptopLid = lid;
+                var typing = clip == AnimClip.LaptopType ? 1.0 : lid * 0.3;
+                var a1 = Math.Sin(ctx.Time * 17) * typing;
+                var a2 = Math.Sin(ctx.Time * 13 + 1.3) * typing;
+                p.ArmLRot = MathUtil.Lerp(p.ArmLRot, 6 + 3 * a1, show);
+                p.ArmRRot = MathUtil.Lerp(p.ArmRRot, 26 + 3 * a2, show);
+                p.ArmLDy = 4 * Math.Max(0, a1) * show;
+                p.ArmRDy = 4 * Math.Max(0, a2) * show;
+                p.HeadRot = -4 * show + 1.5 * Math.Sin(ctx.Time * 0.9) * typing;
+                p.HeadDy = 4 * show;
+                p.LookY = 0.75 * show;
+                p.LookX = 0.35 * show;
+                break;
+            }
+            case AnimClip.ReadBook:
+            {
+                Sit(ref p, 1, ctx.Time);
+                var turn = MathUtil.Bump(((ctx.Time % 7.0) - 6.2) / 0.8);
+                p.PropBook = MathUtil.SmoothStep(t / 0.4);
+                p.ArmLRot = -24;
+                p.ArmRRot = 24 + 30 * turn;
+                p.ArmLDy = -26;
+                p.ArmRDy = -26 - 8 * turn;
+                p.HeadRot = -3 + 2 * Math.Sin(ctx.Time * 0.7);
+                p.HeadDy = 5;
+                p.LookY = 0.8;
+                p.LookX = 0.15 * Math.Sin(ctx.Time * 1.3);
+                break;
+            }
+            case AnimClip.WriteNotes:
+            {
+                Idle(ref p, ctx.Time);
+                var k = MathUtil.SmoothStep(t / 0.35);
+                var scribble = Math.Sin(ctx.Time * 16) * k;
+                p.PropNotebook = k;
+                p.PropPencil = k;
+                p.ArmLRot = -34 * k;
+                p.ArmLDy = -24 * k;
+                p.ArmRRot = (38 + 4 * scribble + 3 * Math.Sin(ctx.Time * 2.3)) * k;
+                p.ArmRDy = (-28 + 3 * Math.Abs(scribble)) * k;
+                p.HeadRot = 5 * k;
+                p.LookY = 0.75 * k;
+                p.LookX = 0.2 * k;
+                break;
+            }
+            case AnimClip.Dance:
+            {
+                var beat = t * 2.6;
+                var b = Math.Abs(Math.Sin(Math.PI * beat));
+                var side = Math.Sin(Math.PI * beat);
+                p.RootDy = ctx.ReducedMotion ? 0 : -18 * b;
+                p.RootRot = 5 * side;
+                p.ArmLRot = 60 + 50 * Math.Max(0, side);
+                p.ArmRRot = -60 - 50 * Math.Max(0, -side);
+                p.LegLRot = 10 * side;
+                p.LegRRot = 10 * side;
+                p.LegLDy = -10 * Math.Max(0, side);
+                p.LegRDy = -10 * Math.Max(0, -side);
+                p.HeadRot = -6 * side;
+                p.StringsRot = 8 * side;
+                p.BodySy = 1 + 0.03 * b;
+                break;
+            }
+            case AnimClip.JumpForJoy:
+            {
+                var crouch = MathUtil.Bump(u / 0.3);
+                var air = MathUtil.Bump((u - 0.25) / 0.6);
+                p.BodySy = 1 - 0.1 * crouch + 0.05 * air;
+                p.RootDy = ctx.ReducedMotion ? 0 : -60 * air;
+                p.ArmLRot = 20 * crouch + 140 * air;
+                p.ArmRRot = -20 * crouch - 140 * air;
+                p.LegLRot = 12 * air;
+                p.LegRRot = -12 * air;
+                p.LegLDy = -12 * air;
+                p.LegRDy = -12 * air;
+                fx = air > 0.3 ? PoseEffect.Sparkle : PoseEffect.None;
+                break;
+            }
         }
 
         if (ctx.ReducedMotion)
@@ -549,6 +716,16 @@ public static class ProceduralAnimator
         }
 
         return new AnimFrame(p, fx, t);
+    }
+
+    /// <summary>Both hands forward, holding something at the belly (backpack, parcel). k = 0..1.</summary>
+    private static void Hold(ref Pose p, double k, double time)
+    {
+        p.ArmLRot = MathUtil.Lerp(p.ArmLRot, -30, k);
+        p.ArmRRot = MathUtil.Lerp(p.ArmRRot, 30, k);
+        p.ArmLDy = MathUtil.Lerp(p.ArmLDy, -12, k);
+        p.ArmRDy = MathUtil.Lerp(p.ArmRDy, -12, k);
+        p.TorsoDy += 1.5 * Math.Sin(time * 2) * k;
     }
 
     private static void Idle(ref Pose p, double time)

@@ -26,7 +26,6 @@ public sealed partial class PetController
     private Action? _afterSequence;
 
     private AlertKind? _alert;
-    private bool _backpackOpen;
     private bool _dragHovering;
 
     public bool IsReceivingDrag => _dragHovering;
@@ -175,7 +174,23 @@ public sealed partial class PetController
                 break;
             }
             case Activity.InspectBackpack:
-                RunSequence(BehaviorState.ReceivingItem, new() { (AnimClip.OpenBackpack, null), (AnimClip.SearchBackpack, 2.4) }, null);
+                RunSequence(BehaviorState.ReceivingItem, new() { (AnimClip.OpenBackpack, null), (AnimClip.SearchBackpack, 2.6), (AnimClip.CloseBackpack, null) }, null);
+                break;
+            case Activity.ReadBook:
+                StartActivity("read", sitting: true, enter: new(), loop: AnimClip.ReadBook, exit: new(), loopSeconds: 18 + _rng.NextDouble() * 30);
+                break;
+            case Activity.UseLaptop:
+                StartActivity("laptop", sitting: true, enter: new() { (AnimClip.LaptopOpen, null) }, loop: AnimClip.LaptopType,
+                    exit: new() { (AnimClip.LaptopClose, null) }, loopSeconds: 12 + _rng.NextDouble() * 25);
+                break;
+            case Activity.WriteNotes:
+                StartActivity("notes", sitting: false, enter: new(), loop: AnimClip.WriteNotes, exit: new(), loopSeconds: 5 + _rng.NextDouble() * 7);
+                break;
+            case Activity.Dance:
+                PlayEmote(AnimClip.Dance);
+                break;
+            case Activity.JumpForJoy:
+                PlayEmote(AnimClip.JumpForJoy);
                 break;
             case Activity.Hop:
             {
@@ -447,7 +462,7 @@ public sealed partial class PetController
     public void DragEntered()
     {
         _dragHovering = true;
-        if (!CanReact) return;
+        if (!CanReact || Machine.State == BehaviorState.Activity) return;
         if (Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping) return;
         _walkTargetX = null;
         Go(BehaviorState.ReceivingItem, "drag enter", force: true);
@@ -471,42 +486,20 @@ public sealed partial class PetController
     public void ItemReceived(bool alreadyHad)
     {
         _dragHovering = false;
+        if (Machine.State == BehaviorState.Activity && _activity is { Name: "backpack" })
+        {
+            // Backpack is already open: the object goes straight in.
+            Interject(AnimClip.PutInBackpack);
+            return;
+        }
         if (!CanReact && Machine.State != BehaviorState.ReceivingItem) return;
         var steps = new List<(AnimClip, double?)>();
-        if (Animation.Current != AnimClip.NoticeItem) steps.Add((AnimClip.NoticeItem, 0.2));
+        if (Animation.Current != AnimClip.NoticeItem) steps.Add((AnimClip.NoticeItem, 0.15));
         steps.Add((AnimClip.CatchItem, null));
         steps.Add((AnimClip.InspectItem, alreadyHad ? 0.25 : null));
         steps.Add((AnimClip.PutInBackpack, null));
+        steps.Add((AnimClip.CloseBackpack, null));
         RunSequence(BehaviorState.ReceivingItem, steps, null);
-    }
-
-    public void BackpackOpened(bool open)
-    {
-        _backpackOpen = open;
-        if (open)
-        {
-            if (!CanReact || Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping) return;
-            _walkTargetX = null;
-            Go(BehaviorState.ShowingBackpack, "backpack open", force: true);
-            Animation.Play(AnimClip.OpenBackpack, force: true);
-        }
-        else if (Machine.State == BehaviorState.ShowingBackpack)
-        {
-            Go(BehaviorState.Idle, "backpack closed", force: true);
-            Animation.Play(AnimClip.IdleBreathing);
-        }
-    }
-
-    private void UpdateBackpack()
-    {
-        if (Animation.Current == AnimClip.OpenBackpack && Animation.IsFinished) Animation.Play(AnimClip.SearchBackpack);
-        if (Animation.Current == AnimClip.PresentItem && Animation.IsFinished) Animation.Play(AnimClip.SearchBackpack);
-        if (Animation.Current == AnimClip.MissingItem && Animation.IsFinished) Animation.Play(AnimClip.SearchBackpack);
-        if (!_backpackOpen)
-        {
-            Go(BehaviorState.Idle, "backpack closed", force: true);
-            Animation.Play(AnimClip.IdleBreathing);
-        }
     }
 
     /// <summary>Hands an item back (the user opened it from the Backpack).</summary>
@@ -518,9 +511,9 @@ public sealed partial class PetController
     /// <summary>Utility feedback (Thinking, Success, Error, PresentItem, MissingItem).</summary>
     public void Feedback(AnimClip clip)
     {
-        if (Machine.State == BehaviorState.ShowingBackpack)
+        if (Machine.State == BehaviorState.Activity && _activity is not null)
         {
-            Animation.Play(clip, force: true, restart: true);
+            Interject(clip);
             return;
         }
         if (Machine.State is BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Emote)
@@ -533,7 +526,8 @@ public sealed partial class PetController
     }
 
     private bool CanReact => !Machine.IsPhysical && Machine.State is not (BehaviorState.Hidden or BehaviorState.Leaving
-        or BehaviorState.Returning or BehaviorState.Vanishing or BehaviorState.Appearing or BehaviorState.Alert or BehaviorState.Recovering);
+        or BehaviorState.Returning or BehaviorState.Vanishing or BehaviorState.Appearing or BehaviorState.Alert or BehaviorState.Recovering
+        or BehaviorState.Climbing);
 
     // ------------------------------------------------------------------ alerts
 
@@ -609,7 +603,7 @@ public sealed partial class PetController
 
         var mode = EffectiveMode;
         var reactive = Settings.CursorReactions && Machine.State is BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Sitting
-            or BehaviorState.Emote or BehaviorState.ShowingBackpack or BehaviorState.Alert or BehaviorState.Landing or BehaviorState.Recovering;
+            or BehaviorState.Emote or BehaviorState.Activity or BehaviorState.Alert or BehaviorState.Landing or BehaviorState.Recovering;
 
         // Look at the user's hand.
         double targetWeight = 0, lx = 0, ly = 0;

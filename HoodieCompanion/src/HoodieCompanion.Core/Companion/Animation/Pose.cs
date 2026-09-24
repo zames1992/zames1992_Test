@@ -17,6 +17,8 @@ public struct Pose
     public double ItemAlpha, ItemDx, ItemDy, ItemRot, ItemScale;
     public double ShadowScale, ShadowAlpha;
     public double Opacity, Scale;
+    // Accessories (0 = hidden .. 1 = fully shown). They exist only while an animation uses them.
+    public double PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil;
 
     public static Pose Neutral => new()
     {
@@ -45,6 +47,10 @@ public struct Pose
             ItemRot = L(a.ItemRot, b.ItemRot, t), ItemScale = L(a.ItemScale, b.ItemScale, t),
             ShadowScale = L(a.ShadowScale, b.ShadowScale, t), ShadowAlpha = L(a.ShadowAlpha, b.ShadowAlpha, t),
             Opacity = L(a.Opacity, b.Opacity, t), Scale = L(a.Scale, b.Scale, t),
+            PropBackpack = L(a.PropBackpack, b.PropBackpack, t), BackpackLid = L(a.BackpackLid, b.BackpackLid, t),
+            PropLaptop = L(a.PropLaptop, b.PropLaptop, t), LaptopLid = L(a.LaptopLid, b.LaptopLid, t),
+            PropBook = L(a.PropBook, b.PropBook, t), PropNotebook = L(a.PropNotebook, b.PropNotebook, t),
+            PropPencil = L(a.PropPencil, b.PropPencil, t),
         };
     }
 
@@ -54,6 +60,7 @@ public struct Pose
         RootDx, RootDy, RootRot, BodySx, BodySy, TorsoRot, TorsoDy, HeadRot, HeadDx, HeadDy, LookX, LookY, EyeOpen, EyeScale,
         ArmLRot, ArmRRot, ArmLDy, ArmRDy, LegLRot, LegRRot, LegLDy, LegRDy, LegLSy, LegRSy, StringsRot,
         ItemAlpha, ItemDx, ItemDy, ItemRot, ItemScale, ShadowScale, ShadowAlpha, Opacity, Scale,
+        PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil,
     };
 }
 

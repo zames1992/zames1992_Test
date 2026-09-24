@@ -30,6 +30,11 @@
 - Release: `build-release.bat` (Windows) / `build-release.sh` (cross-build) → `publish/win-x64/HoodieCompanion.exe`
   (self-contained single file) + `publish/HoodieCompanion-win-x64.zip`; Windows CI workflow.
 
+- v1.1 after user feedback: stuck-grab fix, working throws, inventory grid with drop target, accessories and
+  activity animations (backpack, laptop for PC Status, notebook for Notes/Reminder, book, dance, jump for joy),
+  ladder/rope climbing between monitors, livelier behaviour (faster walking, shorter decision gaps), richer PC Status
+  (bars + 60 s graphs), fixed timer/reminder inputs, Russian language. 40 tests; QA scenario 20/20 PASS under Wine.
+
 ## FAILED (and what replaced it)
 
 - Building with the WindowsDesktop SDK on Linux: not shipped in the Ubuntu SDK → switched to a plain

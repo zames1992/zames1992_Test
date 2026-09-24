@@ -34,7 +34,8 @@ public readonly record struct RenderState(
     AnimClip Clip,
     bool Calm,
     MonitorInfo Monitor,
-    double MonitorScale);
+    double MonitorScale,
+    WorldProp? Prop = null);
 
 public enum AlertKind
 {
@@ -75,8 +76,8 @@ public enum PetCommand
 public sealed partial class PetController
 {
     public const double BaseHeightDip = 150;
-    public const double WalkSpeedDip = 58;
-    public const double RunSpeedDip = 150;
+    public const double WalkSpeedDip = 72;
+    public const double RunSpeedDip = 175;
     public const double HardLandingDip = 1500;
 
     private readonly Random _rng;
@@ -149,6 +150,8 @@ public sealed partial class PetController
         _tilt = 0;
         _walkTargetX = null;
         _travel = null;
+        DropActivity();
+        DropClimb();
         if (appear) StartAppear();
         else Go(BehaviorState.Idle, "placed", force: true);
     }
@@ -179,6 +182,7 @@ public sealed partial class PetController
         UpdatePresence(input);
         UpdateCursor(input, dt);
 
+        PumpPendingActivity();
         switch (Machine.State)
         {
             case BehaviorState.Idle: UpdateIdle(); break;
@@ -193,7 +197,8 @@ public sealed partial class PetController
             case BehaviorState.Landing: UpdateLanding(dt); break;
             case BehaviorState.Recovering: UpdateSequence(); break;
             case BehaviorState.ReceivingItem: UpdateSequence(); break;
-            case BehaviorState.ShowingBackpack: UpdateBackpack(); break;
+            case BehaviorState.Activity: UpdateActivity(); break;
+            case BehaviorState.Climbing: UpdateClimbing(dt); break;
             case BehaviorState.Alert: break;
             case BehaviorState.Leaving: UpdateLeaving(dt); break;
             case BehaviorState.Hidden: UpdateHidden(); break;
@@ -202,7 +207,7 @@ public sealed partial class PetController
             case BehaviorState.Appearing: UpdateAppearing(); break;
         }
 
-        if (!Machine.IsPhysical && Machine.State != BehaviorState.Grabbed)
+        if ((!Machine.IsPhysical || Machine.State == BehaviorState.Climbing) && Machine.State != BehaviorState.Grabbed)
         {
             // Grounded: the rig stands on its feet; any leftover tilt settles quickly.
             _anchorLocal = BodyMetrics.RootLocal;
@@ -232,7 +237,7 @@ public sealed partial class PetController
                    || (Machine.State is BehaviorState.Sitting && Animation.Current == AnimClip.SitIdle && still)
                    || (Machine.State is BehaviorState.Idle && Animation.Current == AnimClip.IdleBreathing && still);
         return new RenderState(Transform, pose, Animation.Effect, Animation.EffectTime, Machine.State != BehaviorState.Hidden,
-            Machine.State, Animation.Current, calm, CurrentMonitor, _monitorScale);
+            Machine.State, Animation.Current, calm, CurrentMonitor, _monitorScale, CurrentProp);
     }
 
     private void UpdateScale(double dt)

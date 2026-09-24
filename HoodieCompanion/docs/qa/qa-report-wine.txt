@@ -1,28 +1,32 @@
 Hoodie Companion — automated QA report
-Date: 2026-09-24 19:14:07
+Date: 2026-09-24 20:14:49
 OS: Microsoft Windows NT 10.0.19043.0  .NET: 8.0.31  64-bit: True
 Monitors: \\.\DISPLAY1:[0,0 1920x1080]:[0,0 1920x1080]:1.00
-Frame rate while active: avg 35.8 fps, max 62.4
-Calm CPU (Quiet, sitting): 4.32% of all cores
-Frame logic (simulation + scene update, excl. WPF render): 0.137 ms/frame
-Peak working set: 716 MB
-States seen: Airborne, Alert, Appearing, Emote, Grabbed, Hidden, Idle, Landing, Leaving, ReceivingItem, Returning, ShowingBackpack, Sitting, Walking
+Frame rate while active: avg 34.6 fps, max 62.4
+Calm CPU (Quiet, sitting): 4.43% of all cores
+Frame logic (simulation + scene update, excl. WPF render): 0.155 ms/frame
+Peak working set: 717 MB
+States seen: Activity, Airborne, Alert, Appearing, Emote, Grabbed, Hidden, Idle, Jumping, Landing, Leaving, ReceivingItem, Returning, Sitting, Turning, Walking
 
 PASS  character appears after launch
 PASS  walks autonomously / on request
 PASS  grab by the hood starts
 PASS  held state while dragging
-PASS  release gives throw velocity (3520 px/s)
+PASS  release gives throw velocity (3082 px/s)
 PASS  lands after the throw
 PASS  still inside the world after the throw
+PASS  releasing the mouse button always drops Hoodie (no sticking)
 PASS  dropped file stored in Backpack
 PASS  Backpack persisted to inventory.json
+PASS  Backpack page: Hoodie opens its backpack
+PASS  timer: typed minutes are kept while the countdown refreshes
+PASS  PC Status page: Hoodie sits down with its laptop
 PASS  removing from Backpack keeps the original file
 PASS  reminder alert: Hoodie holds up the note + card
 PASS  Leave me alone: Hoodie exits and stays hidden
 PASS  Come back: Hoodie returns
 PASS  Quiet mode: sits calmly
-PASS  calm CPU usage is low (4.3% of all cores)
+PASS  calm CPU usage is low (4.4% of all cores)
 PASS  no errors logged (0)
 
 RESULT: PASS
@@ -32,21 +36,32 @@ Recent transitions:
   Appearing -> Idle (appeared)
   Idle -> Walking (walk)
   Walking -> Idle (placed)
-  Idle -> Walking (walk)
-  Walking -> Grabbed (grabbed)
+  Idle -> Jumping (jump)
+  Jumping -> Airborne (takeoff)
+  Airborne -> Grabbed (grabbed)
   Grabbed -> Airborne (thrown)
-  Airborne -> Landing (landed 1223 dip/s)
+  Airborne -> Landing (landed 1336 dip/s)
+  Landing -> Idle (recovered)
+  Idle -> Turning (turn)
+  Turning -> Walking (walk after turn)
+  Walking -> Grabbed (grabbed)
+  Grabbed -> Airborne (released)
+  Airborne -> Landing (landed 30 dip/s)
   Landing -> Idle (recovered)
   Idle -> Idle (placed)
   Idle -> ReceivingItem (sequence)
   ReceivingItem -> ReceivingItem (sequence)
   ReceivingItem -> Idle (sequence done)
-  Idle -> ShowingBackpack (backpack open)
-  ShowingBackpack -> Idle (backpack closed)
-  Idle -> Emote (Success)
-  Emote -> Idle (emote done)
-  Idle -> ReceivingItem (sequence)
-  ReceivingItem -> Alert (Reminder)
+  Idle -> Sitting (sit)
+  Sitting -> Idle (stood up)
+  Idle -> Activity (activity backpack)
+  Activity -> Idle (activity done)
+  Idle -> Activity (activity notes)
+  Activity -> Idle (activity done)
+  Idle -> Activity (activity laptop)
+  Activity -> Sitting (activity done)
+  Sitting -> Idle (stood up)
+  Idle -> Alert (Reminder)
   Alert -> Idle (alert acknowledged)
   Idle -> Emote (Success)
   Emote -> Leaving (leave me alone)
