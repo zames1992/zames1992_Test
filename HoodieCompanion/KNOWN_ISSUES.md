@@ -21,8 +21,10 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 
 ## Features
 
-* **Application windows are not platforms yet.** Hoodie walks on monitor floors (working-area bottoms) and uses
-  monitor edges; it does not stand on or climb windows.
+* **Windows and desktop icons as platforms** are read-only snapshots taken ~3× per second: Hoodie can stand on the
+  visible part of a window's top edge (not on maximised windows) or on a desktop icon, rides along when the window moves
+  and falls when it closes. Icon positions come from the desktop's shell view; with "Show desktop icons" off, or a
+  third-party desktop replacement, icons are simply not used. Turn it off in Settings if you prefer.
 * **GPU usage is not measured** (no reliable dependency-free source) and temperatures are out of scope.
   Disk activity uses the `PhysicalDisk` performance counter and shows "—" where counters are unavailable.
 * **Obstruction avoidance is heuristic**: Hoodie steps aside when the pointer rests on it or when you click right

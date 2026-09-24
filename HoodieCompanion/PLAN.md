@@ -21,7 +21,7 @@ src/HoodieCompanion.Core
   Geometry/            Vec2, RectD, WorldGeometry (monitors, floors, walls, ceilings)
   Companion/Animation  Pose, AnimClip, AnimationCatalog, ProceduralAnimator, AnimationController, RigTransform
   Companion/Physics    BodyMetrics, PetPhysics, GrabController, ThrowController
-  Companion/Behavior   PetController (+Movement, Life, Presence, Activities, Climb, Mind), PetStateMachine,
+  Companion/Behavior   PetController (+Movement, Life, Presence, Activities, Climb, Mind, Surfaces), PetStateMachine,
                        BehaviorController, CharacterDrives, Mind, ReactionSystem, IdleDirector
   Companion/Interaction CursorInteractionService
   Presence/            TerritoryModels, TerritoryService
@@ -30,7 +30,8 @@ src/HoodieCompanion.Core
 src/HoodieCompanion
   Platform/            NativeMethods, MonitorService, DpiService, MouseService, WindowInterop, FrameClock,
                        HotkeyService, ShellIconService, ShellInterop (shell items, thumbnails, Apps folder),
-                       DesktopMenuService, CommandChannel, StartupService, SoundService, Log
+                       DesktopMenuService, CommandChannel, SurfaceScanner (window tops + desktop icons),
+                       StartupService, SoundService, Log
   Presence/            FullscreenService (fullscreen + foreground app rules)
   Features/            SystemMonitorService, ShortcutService, DropHandler
   Companion/Rendering  CharacterRig (rig.json → WPF paths), EffectLayer
@@ -107,4 +108,10 @@ catches; errors = facepalm / confused / frustrated; an ignored reminder = it kno
 pendulum whose rest angle puts the centre of mass straight below it (a foot grab hangs upside down). Landing keeps the
 feet exactly where they were drawn and lets the body rotate upright around them (no sideways jump). Released below a
 floor with nothing underneath (over the taskbar), Hoodie grabs the edge, hangs, and climbs up. Follow-through springs
-(head, sleeves, strings) react to body acceleration; runs end with a skid.
+(head, sleeves, strings) react to body acceleration; runs end with a skid. Grab regions are found on the pose as it is
+drawn (`PosedRig`), so a sitting or sleeping Hoodie can be picked up by a hand or a foot too.
+
+**Platforms.** `SurfaceScanner` (own STA thread, ~3 Hz) reports the visible parts of window top edges (z-order occlusion,
+maximised/cloaked/tool windows skipped) and desktop icon tops (desktop `IFolderView`). Hoodie jumps onto low ones, props a
+ladder for high ones, sits on their edge, rides a moving window, hops down when the pointer approaches a title bar, and
+falls when the platform disappears. It can also climb the side of a screen that has no neighbour and slide back down.

@@ -244,5 +244,6 @@ public static partial class L
         ["Set Home here"] = "Дом здесь",
         ["Open Hoodie's panel"] = "Открыть панель Худи",
         ["Hide / show Hoodie"] = "Спрятать / показать Худи",
+        ["Hoodie may climb onto windows and desktop icons"] = "Худи может забираться на окна и ярлыки",
     };
 }

@@ -109,7 +109,7 @@ public sealed class QaRunner
         At(6.3, "swing", () =>
         {
             var c = _host.CursorOverride!.Value;
-            MoveCursor(c, c + new Vec2(world.Primary.Scale * 520, -world.Primary.Scale * 60), 0.16);
+            MoveCursor(c, c + new Vec2(world.Primary.Scale * 520, -world.Primary.Scale * 60), 0.2);
         });
         At(6.47, "release", () =>
         {
@@ -261,7 +261,7 @@ public sealed class QaRunner
         });
         At(77.6, "hand-grab-start", () =>
         {
-            var hand = pet.Transform.LocalToWorld(new Vec2(140, 596));
+            var hand = pet.Transform.LocalToWorld(PosedRig.HandLeft(pet.Animation.LastPose));
             _host.CursorOverride = hand;
             _host.ButtonOverride = true;
             pet.BeginGrab(hand);
@@ -281,7 +281,7 @@ public sealed class QaRunner
         });
         At(81.5, "foot-grab-start", () =>
         {
-            var foot = pet.Transform.LocalToWorld(new Vec2(200, 795));
+            var foot = pet.Transform.LocalToWorld(PosedRig.FootLeft(pet.Animation.LastPose));
             _host.CursorOverride = foot;
             _host.ButtonOverride = true;
             pet.BeginGrab(foot);
@@ -348,7 +348,34 @@ public sealed class QaRunner
             SnapPet("28-sleeping");
             pet.WorldSleep(false);
         });
-        At(98.0, "report", Finish);
+        At(98.0, "platform", () =>
+        {
+            pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
+            var s = world.Primary.Scale;
+            var surface = new Surface("qa-window", SurfaceKind.Window, groundX - 260 * s, groundX + 260 * s, prim.Bottom - 120 * s);
+            _host.SurfaceOverride = new[] { surface };
+            pet.SetSurfaces(_host.SurfaceOverride);
+        });
+        At(98.4, "platform-visit", () => Check(pet.DebugVisitSurface(), "finds a window top to climb onto"));
+        At(105.0, "platform-check", () =>
+        {
+            Check(pet.StandingOn == "qa-window", $"stands on the window top ({pet.StandingOn ?? "floor"})");
+            SnapDesktop("29-on-window");
+            _host.SurfaceOverride = Array.Empty<Surface>();
+        });
+        At(108.0, "platform-gone", () => Check(pet.StandingOn is null && Math.Abs(pet.Feet.Y - prim.Bottom) < 1, "falls back to the floor when the window closes"));
+        At(108.5, "wall", () =>
+        {
+            pet.Place(new Vec2(prim.Left + prim.Width * 0.07, prim.Bottom), appear: false);
+        });
+        At(109.0, "wall-start", () => Check(pet.DebugClimbWall(), "starts climbing the side of the screen"));
+        At(114.0, "wall-snap", () =>
+        {
+            Check(pet.State == BehaviorState.Climbing && pet.Feet.Y < prim.Bottom - 20, "climbs up the screen side");
+            SnapDesktop("30-screen-side");
+        });
+        At(122.0, "wall-done", () => Check(Math.Abs(pet.Feet.Y - prim.Bottom) < 1, "slides back down to the floor"));
+        At(122.5, "report", Finish);
 
         // Steps run in time order regardless of the order they were declared in.
         var ordered = _steps.Select((st, i) => (st, i)).OrderBy(x => x.st.At).ThenBy(x => x.i).Select(x => x.st).ToList();

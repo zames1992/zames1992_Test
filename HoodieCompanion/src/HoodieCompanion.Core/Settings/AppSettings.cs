@@ -53,6 +53,8 @@ public sealed class AppSettings
     public bool StartWithWindows { get; set; }
     /// <summary>Adds a "Hoodie" submenu to the desktop's right-click menu (Come here, Set Home here...).</summary>
     public bool DesktopMenu { get; set; } = true;
+    /// <summary>Hoodie may jump or climb onto window tops and desktop icons.</summary>
+    public bool ClimbOnWindows { get; set; } = true;
     public bool FirstRunDone { get; set; }
 
     public SavedPosition? LastPosition { get; set; }

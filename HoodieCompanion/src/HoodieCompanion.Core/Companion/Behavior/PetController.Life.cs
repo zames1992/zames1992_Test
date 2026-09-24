@@ -127,7 +127,10 @@ public sealed partial class PetController
             Mind.Afk,
             OnLedge(),
             Mind.Boredom,
-            Mind.Sleepiness);
+            Mind.Sleepiness,
+            _onSurface is null && _surfaces.Count > 0 && PickSurfaceToVisit() is not null,
+            _onSurface is not null,
+            _onSurface is null && ClimbableWallSide() is not null);
 
         var act = Brain.Choose(ctx);
         Log?.Invoke($"decide {act} (mode {mode})");
@@ -144,6 +147,8 @@ public sealed partial class PetController
                     var x = Feet.X + dist;
                     x = Math.Clamp(x, mon.WorkArea.Left + m.HalfWidthPx, mon.WorkArea.Right - m.HalfWidthPx);
                     if (Territory.Anchor is { } a) x = Math.Clamp(x, a.Center.X - a.RadiusPx, a.Center.X + a.RadiusPx);
+                    if (_onSurface is { } sid && FindSurface(sid) is { } surf)
+                        x = Math.Clamp(x, surf.Left + m.HalfWidthPx * 0.4, Math.Max(surf.Left + m.HalfWidthPx * 0.4, surf.Right - m.HalfWidthPx * 0.4));
                     if (Math.Abs(x - Feet.X) < Dip(30)) continue;
                     if (!Territory.CanStop(new Vec2(x, Feet.Y), m.HeightPx)) continue;
                     StartWalk(x, run, null);
@@ -165,6 +170,15 @@ public sealed partial class PetController
             case Activity.Sleep:
                 _sleptBecauseUserAway = Mind.Afk >= AfkPhase.Sleepy;
                 BeginSit(sleepAfter: true);
+                break;
+            case Activity.VisitSurface:
+                if (!VisitSurface()) ScheduleDecision(1);
+                break;
+            case Activity.ClimbWall:
+                if (!ClimbWall()) ScheduleDecision(1);
+                break;
+            case Activity.HopDown:
+                HopDown("done up here");
                 break;
             case Activity.SitEdge:
                 // Sit on the edge of the floor (the top of the taskbar) and swing the legs.

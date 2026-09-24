@@ -166,6 +166,29 @@ public sealed class BehaviorSystemTests : IDisposable
     }
 
     [Fact]
+    public void GrabRegions_FollowTheCurrentPose_SittingAndLying()
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: 12);
+        sim.Pet.Place(new Vec2(900, 1040), appear: false);
+        sim.Pet.SetMode(PresenceMode.Quiet);
+        sim.Run(2);
+        Assert.Equal(BehaviorState.Sitting, sim.Pet.State);
+        var hand = sim.Pet.Transform.LocalToWorld(PosedRig.HandLeft(sim.Pet.Animation.LastPose));
+        Assert.True(sim.Pet.BeginGrab(hand));
+        Assert.Equal(PetController.GrabRegion.HandLeft, sim.Pet.CurrentGrabRegion);
+        sim.Pet.EndGrab(hand);
+        sim.Run(4);
+
+        sim.Pet.WorldSleep(true);
+        sim.Run(3);
+        var foot = sim.Pet.Transform.LocalToWorld(PosedRig.FootRight(sim.Pet.Animation.LastPose));
+        Assert.True(sim.Pet.BeginGrab(foot));
+        Assert.Equal(PetController.GrabRegion.Foot, sim.Pet.CurrentGrabRegion);
+        sim.Run(0.1);
+        Assert.Equal(AnimClip.WakeStartled, sim.Last.Clip);
+    }
+
+    [Fact]
     public void Landing_KeepsTheFeetWhereTheyWereDrawn()
     {
         var world = TestWorlds.Single();
@@ -265,6 +288,69 @@ public sealed class BehaviorSystemTests : IDisposable
         sim.Run(240, r => clips.Add(r.Clip));
         var micro = clips.Where(c => AnimationCatalog.Get(c).Rarity is "Frequent" or "Occasional" or "Rare").ToList();
         Assert.True(micro.Count >= 5, string.Join(",", clips));
+    }
+
+    // ------------------------------------------------------------------ platforms
+
+    [Fact]
+    public void Platforms_JumpOn_Ride_FallWhenGone()
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: 6);
+        sim.Pet.Place(new Vec2(900, 1040), appear: false);
+        sim.Cursor = new Vec2(100, 100);
+        var surf = new Surface("w1", SurfaceKind.Window, 700, 1200, 900); // 140 px above the floor
+        sim.Pet.SetSurfaces(new[] { surf });
+        sim.Run(0.3);
+        Assert.True(sim.Pet.DebugVisitSurface(), "should find the window top");
+        sim.Run(8);
+        Assert.Equal("w1", sim.Pet.StandingOn);
+        Assert.Equal(900, sim.Pet.Feet.Y, 1);
+        // The window moves: Hoodie rides along.
+        var x0 = sim.Pet.Feet.X;
+        sim.Pet.SetSurfaces(new[] { surf with { Left = 760, Right = 1260, Y = 880 } });
+        sim.Run(0.2);
+        Assert.Equal(880, sim.Pet.Feet.Y, 1);
+        Assert.Equal(x0 + 60, sim.Pet.Feet.X, 1);
+        // The window closes: Hoodie falls back to the floor.
+        sim.Pet.SetSurfaces(Array.Empty<Surface>());
+        sim.Run(4);
+        Assert.Null(sim.Pet.StandingOn);
+        Assert.Equal(1040, sim.Pet.Feet.Y, 1);
+    }
+
+    [Fact]
+    public void Platforms_HighOnesUseTheLadder_AndTitleBarsAreFreedForThePointer()
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: 7);
+        sim.Pet.Place(new Vec2(900, 1040), appear: false);
+        sim.Cursor = new Vec2(100, 100);
+        sim.Pet.SetSurfaces(new[] { new Surface("w2", SurfaceKind.Window, 600, 1300, 600) });
+        sim.Run(0.3);
+        Assert.True(sim.Pet.DebugVisitSurface());
+        var sawLadder = false;
+        sim.Run(12, r => sawLadder |= r.Prop is { Kind: WorldPropKind.Ladder });
+        Assert.True(sawLadder);
+        Assert.Equal("w2", sim.Pet.StandingOn);
+        Assert.Equal(600, sim.Pet.Feet.Y, 1);
+        // The pointer comes to the title bar: Hoodie hops down.
+        sim.Cursor = sim.Pet.HeadWorld + new Vec2(20, 0);
+        sim.Run(4);
+        Assert.Null(sim.Pet.StandingOn);
+        Assert.Equal(1040, sim.Pet.Feet.Y, 1);
+    }
+
+    [Fact]
+    public void ClimbsTheSideOfTheScreen_AndSlidesBackDown()
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: 8);
+        sim.Pet.Place(new Vec2(300, 1040), appear: false);
+        sim.Run(0.3);
+        Assert.True(sim.Pet.DebugClimbWall());
+        var minY = double.MaxValue;
+        sim.Run(20, _ => minY = Math.Min(minY, sim.Pet.Feet.Y));
+        Assert.True(minY < 1040 - 200, $"climbed only to {minY}");
+        Assert.Equal(1040, sim.Pet.Feet.Y, 1);
+        Assert.InRange(sim.Pet.Feet.X, 0, 60);
     }
 
     // ------------------------------------------------------------------ backpack & notes

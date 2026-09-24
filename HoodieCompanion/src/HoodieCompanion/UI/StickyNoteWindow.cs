@@ -131,16 +131,16 @@ public sealed class StickyNoteWindow : Window
         _text.Foreground = Brush(text);
         _text.CaretBrush = Brush(text);
         if (!_text.IsKeyboardFocusWithin && _text.Text != note.Text) _text.Text = note.Text;
-        foreach (var path in LogicalChildren(_header).OfType<System.Windows.Shapes.Path>()) path.Stroke = Brush(text);
+        foreach (var path in AllLogicalChildren(_header).OfType<System.Windows.Shapes.Path>()) path.Stroke = Brush(text);
     }
 
-    private static IEnumerable<object> LogicalChildren(DependencyObject o)
+    private static IEnumerable<object> AllLogicalChildren(DependencyObject o)
     {
         foreach (var c in LogicalTreeHelper.GetChildren(o))
         {
             yield return c;
             if (c is DependencyObject d)
-                foreach (var cc in LogicalChildren(d)) yield return cc;
+                foreach (var cc in AllLogicalChildren(d)) yield return cc;
         }
     }
 

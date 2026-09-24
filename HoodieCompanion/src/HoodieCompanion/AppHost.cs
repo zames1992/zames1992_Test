@@ -50,6 +50,7 @@ public sealed class AppHost : IDisposable
     private AppPresenceMode _foregroundRule;
     private double _userIdle;
     private CommandChannel? _commands;
+    private SurfaceScanner? _surfaceScanner;
     private int _housekeepingTicks;
     private RenderState _last;
     private bool _disposed;
@@ -106,6 +107,8 @@ public sealed class AppHost : IDisposable
     /// <summary>Optional cursor override used by the automated QA script.</summary>
     public Vec2? CursorOverride { get; set; }
     public bool? ButtonOverride { get; set; }
+    /// <summary>QA: fixed platforms instead of the real window tops / icons.</summary>
+    public IReadOnlyList<Surface>? SurfaceOverride { get; set; }
 
     // ------------------------------------------------------------------ lifecycle
 
@@ -159,6 +162,7 @@ public sealed class AppHost : IDisposable
         Pet.Place(InitialPosition(), appear: true);
         _commands = new CommandChannel((c, x, y) => _app.Dispatcher.BeginInvoke(() => DesktopCommand(c, x, y)));
         ApplyDesktopMenu();
+        _surfaceScanner = new SurfaceScanner(_app.Dispatcher, s => Pet.SetSurfaces(SurfaceOverride ?? (Settings.ClimbOnWindows && !EmergencyHidden ? s : Array.Empty<Surface>())));
         _clock.Tick += OnFrame;
         _clock.Start();
         _housekeeping.Start();
@@ -666,6 +670,7 @@ public sealed class AppHost : IDisposable
         _monitor?.Dispose();
         StickyNotes?.CloseAll();
         _commands?.Dispose();
+        _surfaceScanner?.Dispose();
     }
 
     public RenderState LastRender => _last;

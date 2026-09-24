@@ -134,6 +134,20 @@ public sealed partial class PetController
             }
         }
 
+        if (_onSurface is { } sid)
+        {
+            // On a window top / icon: the platform ends before the monitor does.
+            if (FindSurface(sid) is { } surf && !surf.Contains(nextX, m.HalfWidthPx * 0.1))
+            {
+                HopDown("walked to the end of the platform");
+                return;
+            }
+            Feet = new Vec2(nextX, Feet.Y);
+            _walkPhase += step / Math.Max(1e-3, (run ? ProceduralAnimator.RunStride : ProceduralAnimator.WalkStride) * m.RefToPx);
+            if (Math.Abs(target - Feet.X) < 1.0) ArriveWalk();
+            return;
+        }
+
         var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
         var lead = nextX + dir * m.HalfWidthPx * 0.25;
         var floorY = Feet.Y;
@@ -384,6 +398,31 @@ public sealed partial class PetController
         return GrabRegion.Hood;
     }
 
+    /// <summary>
+    /// Nearest body part to the grab point in the current pose: a hand or a foot when the point is close to
+    /// it, otherwise the body (below the chest) or the hood.
+    /// </summary>
+    public static GrabRegion RegionInPose(Vec2 local, in Pose pose)
+    {
+        var parts = new (GrabRegion Region, Vec2 At, double Radius)[]
+        {
+            (GrabRegion.HandLeft, PosedRig.HandLeft(pose), 62),
+            (GrabRegion.HandRight, PosedRig.HandRight(pose), 62),
+            (GrabRegion.Foot, PosedRig.FootLeft(pose), 70),
+            (GrabRegion.Foot, PosedRig.FootRight(pose), 70),
+        };
+        var best = GrabRegion.Hood;
+        var bestD = double.MaxValue;
+        foreach (var (r, at, radius) in parts)
+        {
+            var d = Vec2.Distance(local, at);
+            if (d < radius && d < bestD) { best = r; bestD = d; }
+        }
+        if (bestD < double.MaxValue) return best;
+        // Body vs hood: closer to the belly than to the head means the body.
+        return Vec2.Distance(local, PosedRig.BellyPoint(pose)) < Vec2.Distance(local, PosedRig.Head(pose)) ? GrabRegion.Torso : GrabRegion.Hood;
+    }
+
     public bool BeginGrab(Vec2 cursor)
     {
         if (!Settings.GrabThrow) return false;
@@ -391,8 +430,8 @@ public sealed partial class PetController
         var t = Transform;
         var local = t.WorldToLocal(cursor);
         var wasAsleep = Machine.State == BehaviorState.Sleeping;
-        // Lying or sitting poses do not match the rest-pose regions; treat those grabs as a scruff of the hood.
-        var region = Machine.State is BehaviorState.Sleeping or BehaviorState.Sitting ? GrabRegion.Hood : RegionAt(local);
+        // What was grabbed is judged on the pose as it is drawn now (sitting, lying, mid-step...).
+        var region = RegionInPose(local, Animation.LastPose);
         Vec2 grabLocal;
         var keepOffset = true;
         switch (region)
@@ -406,7 +445,8 @@ public sealed partial class PetController
                 keepOffset = false;
                 break;
             case GrabRegion.Foot:
-                grabLocal = local.X < RigTransform.AxisX ? new Vec2(186, 800) : new Vec2(336, 806);
+                var pose = Animation.LastPose;
+                grabLocal = Vec2.Distance(local, PosedRig.FootLeft(pose)) <= Vec2.Distance(local, PosedRig.FootRight(pose)) ? new Vec2(186, 800) : new Vec2(336, 806);
                 keepOffset = false;
                 break;
             case GrabRegion.Torso:
@@ -418,7 +458,15 @@ public sealed partial class PetController
                 break;
         }
         // The pivot starts where that point is drawn now, so nothing jumps; it then eases to the finger.
-        var pivot = t.LocalToWorld(region is GrabRegion.HandLeft or GrabRegion.HandRight ? ClosestRestHand(region) : grabLocal);
+        var posed = Animation.LastPose;
+        var drawnAt = region switch
+        {
+            GrabRegion.HandLeft => PosedRig.HandLeft(posed),
+            GrabRegion.HandRight => PosedRig.HandRight(posed),
+            GrabRegion.Foot => grabLocal.X < RigTransform.AxisX ? PosedRig.FootLeft(posed) : PosedRig.FootRight(posed),
+            _ => local,
+        };
+        var pivot = t.LocalToWorld(drawnAt);
         var rest = region == GrabRegion.Hood ? 0 : GrabController.RestAngleFor(grabLocal, Facing);
         Grab.Begin(pivot, grabLocal, cursor, _tilt, rest, limitSwing: region is GrabRegion.Hood or GrabRegion.Torso, keepCursorOffset: keepOffset);
         _grabRegion = region;
@@ -438,8 +486,6 @@ public sealed partial class PetController
         Mind.OnGrabbed(wasAsleep);
         return true;
     }
-
-    private static Vec2 ClosestRestHand(GrabRegion r) => r == GrabRegion.HandLeft ? new Vec2(140, 596) : new Vec2(412, 610);
 
     private static AnimClip HangClip(GrabRegion r) => r switch
     {
@@ -504,7 +550,10 @@ public sealed partial class PetController
     {
         var m = Metrics;
         if (TryCatchLedge(m)) return;
+        var prevCenter = Physics.Center;
+        var velocityBefore = Physics.Velocity;
         var landing = Physics.Step(dt, World, m);
+        if (TryLandOnSurface(prevCenter, velocityBefore, m)) return;
         _anchorLocal = BodyMetrics.CenterLocal;
         _anchorWorld = Physics.Center;
 

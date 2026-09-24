@@ -176,8 +176,28 @@ public sealed partial class PetController
     {
         if (activity == _panelActivity) return;
         _panelActivity = activity;
-        if (_activity is { FromPanel: true }) StopActivity();
-        if (activity == PanelActivity.None) return;
+        if (activity == PanelActivity.None)
+        {
+            // Panel closed: put the accessory away properly.
+            if (_activity is not null) StopActivity();
+            return;
+        }
+        // The user's page always wins over whatever Hoodie was doing (reading, laptop, another page), and at
+        // once: the old accessory is dropped without its exit animation so the new one comes out immediately.
+        if (_activity is { } old && Machine.State == BehaviorState.Activity)
+        {
+            _activity = null;
+            if (old.Sitting)
+            {
+                Go(BehaviorState.Sitting, "switch activity", force: true);
+                _sitUntil = _time + 3;
+                _sleepAfterSit = false;
+            }
+            else
+            {
+                Go(BehaviorState.Idle, "switch activity", force: true);
+            }
+        }
         if (!CanReact) return;
 
         // Start after the previous activity has finished its exit.

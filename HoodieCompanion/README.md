@@ -64,7 +64,7 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 
 | Mode | Behavior |
 |---|---|
-| **Normal** | Balanced: wanders, explores other monitors (ladder up, rope down), reads a book, works on its laptop, writes notes, peeks over edges, sits on the edge of the taskbar swinging its legs, lies around, naps (lying down) |
+| **Normal** | Balanced: wanders, explores other monitors (ladder up, rope down), jumps or climbs onto window tops and desktop icons, climbs the side of the screen, reads a book, works on its laptop, writes notes, peeks over edges, sits on the edge of the taskbar swinging its legs, lies around, naps (lying down) |
 | **Company** | Stays near your pointer, sits nearby, looks at you now and then — no interruptions |
 | **Play** | Chases the pointer along the floor, runs, hops, dances |
 | **Focus** | "We both do our own work": goes Home / to a Quiet area / to the far corner (another monitor if possible), sits quietly, no games, no surprises |

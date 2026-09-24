@@ -56,16 +56,17 @@ public sealed class WorldPropWindow : Window
         }
         if (!IsVisible) Show();
         var p = prop.Value;
-        if (_last is { } l && l.Kind == p.Kind && Math.Abs(l.Reveal - p.Reveal) < 0.004 && Math.Abs(l.Alpha - p.Alpha) < 0.01 && l.Top == p.Top && l.Bottom == p.Bottom)
+        if (_last is { } l && l.Kind == p.Kind && Math.Abs(l.Reveal - p.Reveal) < 0.004 && Math.Abs(l.Alpha - p.Alpha) < 0.01 && l.Top == p.Top && l.Bottom == p.Bottom && Math.Abs(l.Sway - p.Sway) < 0.05)
             return;
         _last = p;
 
         var s = p.Scale;
-        var halfW = (p.Kind == WorldPropKind.Ladder ? 26 : 10) * s;
+        // Room for the sway (ladder pivots at its feet, rope at its knot).
+        var halfW = (p.Kind == WorldPropKind.Ladder ? 26 : 10) * s + Math.Abs(p.Bottom.Y - p.Top.Y) * 0.14;
         var x = (int)Math.Floor(p.Top.X - halfW - 4 * s);
         var y = (int)Math.Floor(Math.Min(p.Top.Y, p.Bottom.Y) - 8 * s);
         var w = (int)Math.Ceiling(halfW * 2 + 8 * s);
-        var h = (int)Math.Ceiling(Math.Abs(p.Bottom.Y - p.Top.Y) + 16 * s);
+        var h = (int)Math.Ceiling(Math.Abs(p.Bottom.Y - p.Top.Y) * 1.05 + 16 * s);
         if (x != _x || y != _y || w != _w || h != _h)
         {
             WindowInterop.SetBounds(WindowInterop.Handle(this), x, y, w, h, topmost);
@@ -81,11 +82,12 @@ public sealed class WorldPropWindow : Window
         var bottom = D(p.Bottom.Y - y);
         var len = bottom - top;
         var k = s / dpi;
+        _canvas.RenderTransform = new RotateTransform(p.Sway, cx, p.Kind == WorldPropKind.Ladder ? bottom : top);
 
         if (p.Kind == WorldPropKind.Ladder)
         {
             // Grows upwards from the floor while Hoodie props it up.
-            var visTop = bottom - len * p.Reveal;
+            var visTop = Math.Max(0, bottom - len * p.Reveal);
             var rail = 5 * k;
             var half = 20 * k;
             foreach (var sx in new[] { cx - half, cx + half })
@@ -107,7 +109,7 @@ public sealed class WorldPropWindow : Window
         else
         {
             // Unrolls downwards from the knot at the edge.
-            var visBottom = top + len * p.Reveal;
+            var visBottom = Math.Min(_h / dpi, top + len * p.Reveal);
             var rope = new Line { X1 = cx, X2 = cx, Y1 = top, Y2 = visBottom, Stroke = Outline, StrokeThickness = 7 * k, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
             var core = new Line { X1 = cx, X2 = cx, Y1 = top, Y2 = visBottom, Stroke = RopeFill, StrokeThickness = 4 * k, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
             _canvas.Children.Add(rope);

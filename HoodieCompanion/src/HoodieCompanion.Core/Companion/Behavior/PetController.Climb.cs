@@ -14,7 +14,7 @@ public enum WorldPropKind
 /// A prop that lives in the world rather than in Hoodie's hands (drawn by the host in its own
 /// click-through window). Coordinates in virtual-desktop pixels.
 /// </summary>
-public readonly record struct WorldProp(WorldPropKind Kind, Vec2 Top, Vec2 Bottom, double Reveal, double Alpha, double Scale);
+public readonly record struct WorldProp(WorldPropKind Kind, Vec2 Top, Vec2 Bottom, double Reveal, double Alpha, double Scale, double Sway = 0);
 
 public sealed partial class PetController
 {
@@ -126,13 +126,24 @@ public sealed partial class PetController
             var scale = _monitorScale;
             if (_climb is { } c)
             {
-                double reveal = 1;
+                double reveal = 1, sway;
                 if (c.Phase == 0)
                 {
+                    // Pushed up / thrown down with a little overshoot, then it settles with a wobble.
                     var d = AnimationCatalog.Get(c.Kind == WorldPropKind.Ladder ? AnimClip.PlaceLadder : AnimClip.TieRope).Duration;
-                    reveal = MathUtil.SmoothStep(Machine.TimeInState / d);
+                    var k = MathUtil.Clamp01(Machine.TimeInState / d);
+                    reveal = Math.Min(1.04, MathUtil.EaseOutBack(k));
+                    sway = (c.Kind == WorldPropKind.Ladder ? 4 : 7) * Math.Sin(Machine.TimeInState * 13) * (1 - k);
                 }
-                return new WorldProp(c.Kind, new Vec2(c.PropX, c.PropTopY), new Vec2(c.PropX, c.PropBottomY), reveal, 1, scale);
+                else
+                {
+                    // Every step shakes the ladder a little; the rope swings under Hoodie's weight.
+                    sway = c.Kind == WorldPropKind.Ladder
+                        ? 1.6 * Math.Sin(2 * Math.PI * _walkPhase) + 0.6 * Math.Sin(_time * 3.1)
+                        : 3.5 * Math.Sin(_time * 2.2) + 1.2 * Math.Sin(2 * Math.PI * _walkPhase);
+                }
+                if (Settings.ReducedMotion) sway *= 0.3;
+                return new WorldProp(c.Kind, new Vec2(c.PropX, c.PropTopY), new Vec2(c.PropX, c.PropBottomY), reveal, 1, scale, sway);
             }
             if (_fadingProp is { } f)
             {
@@ -201,6 +212,11 @@ public sealed partial class PetController
             UpdateLedge();
             return;
         }
+        if (_wall is not null)
+        {
+            UpdateWall(dt);
+            return;
+        }
         var c = _climb;
         if (c is null)
         {
@@ -234,6 +250,16 @@ public sealed partial class PetController
                 _fadingProp = new WorldProp(c.Kind, new Vec2(c.PropX, c.PropTopY), new Vec2(c.PropX, c.PropBottomY), 1, 1, _monitorScale);
                 _fadeStart = _time;
                 _climb = null;
+                if (_climbOntoSurface is not null)
+                {
+                    ArrivedAtLadderTop();
+                    if (_onSurface is null) return;
+                    Go(BehaviorState.Landing, "on the platform", force: true);
+                    _landingImpact = 0;
+                    _slideVelocity = 0;
+                    Animation.Play(AnimClip.LandSoft, force: true, restart: true);
+                    return;
+                }
                 if (c.Kind == WorldPropKind.Ladder && Math.Abs(c.StepOffX - Feet.X) > 1)
                 {
                     // Hop from the top of the ladder onto the neighbouring, higher floor.
@@ -258,5 +284,7 @@ public sealed partial class PetController
         }
         _climb = null;
         _ledge = null;
+        _wall = null;
+        _climbOntoSurface = null;
     }
 }

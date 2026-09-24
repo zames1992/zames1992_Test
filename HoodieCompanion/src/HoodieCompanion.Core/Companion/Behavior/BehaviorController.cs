@@ -28,6 +28,12 @@ public enum Activity
     SitEdge,
     /// <summary>Lie down on the floor for a while, kicking a foot.</summary>
     LieAround,
+    /// <summary>Jump or climb onto a window top / desktop icon.</summary>
+    VisitSurface,
+    /// <summary>Climb up the side of the screen and slide back down.</summary>
+    ClimbWall,
+    /// <summary>Hop down from the platform Hoodie stands on.</summary>
+    HopDown,
 }
 
 public readonly record struct DecisionContext(
@@ -43,7 +49,10 @@ public readonly record struct DecisionContext(
     AfkPhase Afk = AfkPhase.Present,
     bool OnLedge = false,
     double Boredom = 0,
-    double Sleepiness = 0);
+    double Sleepiness = 0,
+    bool CanVisitSurface = false,
+    bool OnSurface = false,
+    bool CanClimbWall = false);
 
 /// <summary>
 /// Weighted choice of the next autonomous activity. Presence mode shapes the weights; drives vary them.
@@ -129,6 +138,19 @@ public sealed class BehaviorController
             w[Activity.LieAround] = 0.6 + c.Sleepiness;
         }
         if (c.Mode == PresenceMode.Company) w[Activity.SitEdge] = c.OnLedge ? 0.6 : 0;
+        if (c.Mode is PresenceMode.Normal or PresenceMode.Play or PresenceMode.Company)
+        {
+            if (c.CanVisitSurface) Add(w, Activity.VisitSurface, (c.Mode == PresenceMode.Play ? 0.9 : 0.3) + d.Curiosity * 0.4 + (c.Afk == AfkPhase.Exploring ? 2 : 0));
+            if (c.CanClimbWall && !c.ReducedMotion) Add(w, Activity.ClimbWall, (c.Mode == PresenceMode.Play ? 0.6 : 0.15) + d.Playfulness * 0.3 + (c.Afk == AfkPhase.Exploring ? 1 : 0));
+        }
+        if (c.OnSurface)
+        {
+            // Up on a platform only a few things make sense; then hop down again.
+            var keep = new[] { Activity.SitEdge, Activity.LookAround, Activity.Wander, Activity.Stretch, Activity.Yawn, Activity.Sit, Activity.ReadBook };
+            foreach (var k in w.Keys.ToList()) if (!keep.Contains(k)) w.Remove(k);
+            Add(w, Activity.SitEdge, 1.5);
+            Add(w, Activity.HopDown, 1.2);
+        }
         // Away-from-keyboard timeline biases (the user is not watching; Hoodie entertains itself).
         if (c.Mode is PresenceMode.Normal or PresenceMode.Company or PresenceMode.Play)
         {

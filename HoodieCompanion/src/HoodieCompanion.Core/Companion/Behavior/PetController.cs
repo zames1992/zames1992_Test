@@ -160,6 +160,7 @@ public sealed partial class PetController
         _tilt = 0;
         _walkTargetX = null;
         _travel = null;
+        _onSurface = null;
         DropActivity();
         DropClimb();
         if (appear) StartAppear();
@@ -170,7 +171,7 @@ public sealed partial class PetController
     {
         World = world;
         Territory.UpdateWorld(world);
-        if (Machine.IsPhysical) return;
+        if (Machine.IsPhysical || _onSurface is not null) return;
         var m = World.MonitorAt(Feet);
         if (m is null || Math.Abs(m.WorkArea.Bottom - Feet.Y) > 2)
         {
@@ -195,6 +196,7 @@ public sealed partial class PetController
 
         UpdatePresence(input);
         UpdateCursor(input, dt);
+        UpdateSurface();
 
         PumpPendingActivity();
         switch (Machine.State)

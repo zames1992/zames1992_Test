@@ -43,7 +43,9 @@
   (no gap when walking), hip sway and follow-through springs; sleep lying down. Backpack: Recycle Bin and other shell
   objects, background opening, thumbnails, app search (Calculator & Store apps), drag to reorder. Notes as a Sticky Notes
   board with colours, labels and desktop-pinned notes. Desktop right-click menu. Territory editor: tools always clickable,
-  legend. 56 tests; QA scenario 29/29 PASS under Wine.
+  legend. Windows and desktop icons as platforms (jump / ladder up, ride, fall, hop down for the pointer), climbing the
+  side of the screen, livelier ladder and rope (overshoot, wobble, sway). Grab detection follows the drawn pose.
+  60 tests; QA scenario 34/34 PASS under Wine (3 consecutive runs).
 
 ## FAILED (and what replaced it)
 
@@ -57,7 +59,6 @@
 ## NEXT
 
 - Measure idle CPU/RAM on a desktop PC with a GPU (CI VM is GPU-less).
-- Windows and desktop icons as platforms (stand on title bars / icons), climbing the sides of the screen.
 - Elbow joints for nicer arm poses.
 
 ## BLOCKER

@@ -257,7 +257,6 @@ public sealed class EffectLayer : Canvas
                 Place(_paper, x, y, 1 - Math.Clamp((k - 0.85) / 0.15, 0, 1), 1.3 - 0.3 * k, t * (k > 0 ? 600 : 90));
                 break;
             }
-                break;
         }
     }
 
