@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    WPF without XAML compilation: every view is built in C# (plus one runtime-loaded theme dictionary),
+    so the project only needs the Microsoft.WindowsDesktop.App framework reference and can be built
+    on Windows or cross-built from Linux/macOS with EnableWindowsTargeting.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>HoodieCompanion</RootNamespace>
+    <AssemblyName>HoodieCompanion</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\hoodie.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>Hoodie Companion</Product>
+    <Company>Hoodie Companion</Company>
+    <Description>A small digital creature that lives on your desktop.</Description>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+    <ProjectReference Include="..\HoodieCompanion.Core\HoodieCompanion.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\rig.json" LogicalName="HoodieCompanion.rig.json" />
+    <EmbeddedResource Include="Assets\Theme.xaml" LogicalName="HoodieCompanion.Theme.xaml" />
+    <EmbeddedResource Include="Assets\hoodie.ico" LogicalName="HoodieCompanion.hoodie.ico" />
+  </ItemGroup>
+</Project>

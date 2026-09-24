@@ -1,0 +1,210 @@
+using System;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using HoodieCompanion.Platform;
+using HoodieCompanion.Presence;
+using HoodieCompanion.Settings;
+
+namespace HoodieCompanion.UI;
+
+/// <summary>Layer 4: settings. Changes apply immediately and are saved locally.</summary>
+public sealed class SettingsWindow : Window
+{
+    private readonly AppHost _host;
+    private readonly StackPanel _content = new() { Margin = new Thickness(22, 18, 22, 22) };
+
+    public SettingsWindow(AppHost host)
+    {
+        _host = host;
+        Title = "Hoodie Companion — Settings";
+        Width = 520;
+        Height = 720;
+        MinWidth = 440;
+        MinHeight = 400;
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Background = Ui.Brush("Bg");
+        Foreground = Ui.Brush("Text");
+        FontFamily = Ui.Font;
+        Content = Ui.Scroll(_content);
+        SourceInitialized += (_, _) => WindowInterop.RoundCorners(this);
+        Closed += (_, _) => _host.SaveAll();
+        Build();
+    }
+
+    public void Build()
+    {
+        var s = _host.Settings;
+        _content.Children.Clear();
+        var title = Ui.Text("Settings", 22, weight: FontWeights.SemiBold);
+        _content.Children.Add(title);
+        _content.Children.Add(Ui.Text("Everything is stored locally on this PC. Nothing is sent anywhere.", 12, dim: true));
+
+        Section("Companion");
+        SliderRow("Size", s.Scale, 0.5, 2.0, v => { s.Scale = v; _host.SettingsChanged(); }, v => $"{v * 100:0}%");
+        SliderRow("Walking speed", s.WalkSpeed, 0.4, 2.5, v => { s.WalkSpeed = v; _host.SettingsChanged(); }, v => $"{v:0.0}×");
+
+        Section("Behavior");
+        Check("Autonomous behavior (wanders, rests and explores on its own)", s.AutonomousBehavior, v => s.AutonomousBehavior = v);
+        var modes = Enum.GetValues<PresenceMode>().Where(m => m != PresenceMode.Alone).ToArray();
+        Combo("Default presence mode", modes.Select(m => m.ToString()).ToArray(), Array.IndexOf(modes, s.DefaultPresenceMode),
+            i => s.DefaultPresenceMode = modes[Math.Max(0, i)]);
+        Check("Remember the last presence mode on start", s.RestorePresenceOnStart, v => s.RestorePresenceOnStart = v);
+
+        Section("Interaction");
+        Check("React to the cursor", s.CursorReactions, v => s.CursorReactions = v);
+        Check("Allow grabbing and throwing", s.GrabThrow, v => s.GrabThrow = v);
+        Check("Reduced motion (no big jumps, gentle transitions)", s.ReducedMotion, v => s.ReducedMotion = v);
+
+        Section("Appearance");
+        Check("Always on top", s.AlwaysOnTop, v => { s.AlwaysOnTop = v; _host.SettingsChanged(); });
+
+        Section("Territory");
+        var home = _host.Territory.Data.Home;
+        var homeMon = home is null ? null : _host.World.FindById(home.MonitorId);
+        _content.Children.Add(Ui.Text(home is null ? "No Home set — Hoodie rests near the bottom-right of your main monitor." :
+            $"Home: {(homeMon?.DisplayName ?? "a monitor that is not connected")}, {home.RelX * 100:0}% from the left.", 12.5, dim: true));
+        var homeButtons = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        homeButtons.Children.Add(Btn("Set Home to Hoodie's current spot", () => { _host.SetHomeHere(); Build(); }));
+        homeButtons.Children.Add(Btn("Clear Home", () => { _host.Territory.Data.Home = null; _host.Territory.NotifyChanged(); Build(); }));
+        _content.Children.Add(homeButtons);
+
+        var monCaption = Ui.Text("Per-monitor rules", 13, weight: FontWeights.SemiBold);
+        monCaption.Margin = new Thickness(0, 12, 0, 4);
+        _content.Children.Add(monCaption);
+        var ruleTypes = new[] { RegionType.Free, RegionType.Quiet, RegionType.PassThrough, RegionType.NoGo };
+        var ruleNames = new[] { "Allowed", "Quiet", "Pass through only", "Never enter" };
+        foreach (var m in _host.World.Monitors)
+        {
+            var mon = m;
+            var cur = _host.Territory.MonitorRule(mon.Id);
+            var idx = Array.IndexOf(ruleTypes, cur);
+            Combo($"{mon.DisplayName} — {mon.Bounds.Width:0}×{mon.Bounds.Height:0} @ {mon.Scale * 100:0}%", ruleNames, idx < 0 ? 0 : idx,
+                i => _host.Territory.SetMonitorRule(mon.Id, ruleTypes[Math.Max(0, i)]));
+        }
+        var regions = _host.Territory.Data.Regions.Count;
+        _content.Children.Add(Ui.Text(regions == 0 ? "No restricted areas drawn." : $"{regions} area(s) drawn.", 12.5, dim: true));
+        var terr = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        terr.Children.Add(Btn("Open territory editor…", () => _host.ShowTerritoryEditor(), accent: true));
+        terr.Children.Add(Btn("Clear drawn areas", () => { _host.Territory.Data.Regions.Clear(); _host.Territory.NotifyChanged(); Build(); }));
+        _content.Children.Add(terr);
+
+        Section("App rules");
+        _content.Children.Add(Ui.Text("How Hoodie behaves while a specific app is in front. Fullscreen games, videos and presentations are handled automatically.", 12.5, dim: true));
+        Check("Hide or step aside during fullscreen apps", s.HideOnFullscreen, v => s.HideOnFullscreen = v);
+        var appModes = Enum.GetValues<AppPresenceMode>();
+        foreach (var rule in _host.Territory.Data.AppRules.ToList())
+        {
+            var r = rule;
+            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+            var del = Btn("Remove", () => { _host.Territory.Data.AppRules.Remove(r); _host.Territory.NotifyChanged(); Build(); });
+            DockPanel.SetDock(del, Dock.Right);
+            row.Children.Add(del);
+            var cb = new ComboBox { ItemsSource = appModes.Select(m => m.ToString()).ToList(), SelectedIndex = Array.IndexOf(appModes, r.PresenceMode), Margin = new Thickness(8, 0, 8, 0), MinWidth = 100 };
+            cb.SelectionChanged += (_, _) => { r.PresenceMode = appModes[Math.Max(0, cb.SelectedIndex)]; _host.Territory.NotifyChanged(); };
+            DockPanel.SetDock(cb, Dock.Right);
+            row.Children.Add(cb);
+            var name = Ui.Text(r.ProcessName, 13);
+            name.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(name);
+            _content.Children.Add(row);
+        }
+        var addRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var nameBox = new ComboBox { IsEditable = true, MinWidth = 180, ItemsSource = _host.RecentProcesses.ToList() };
+        nameBox.Resources[SystemColors.WindowBrushKey] = Ui.Brush("Surface");
+        var modeBox = new ComboBox { ItemsSource = appModes.Select(m => m.ToString()).ToList(), SelectedIndex = 1, Margin = new Thickness(8, 0, 8, 0), MinWidth = 100 };
+        var add = Btn("Add rule", () =>
+        {
+            var n = (nameBox.Text ?? "").Trim();
+            if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) n = n[..^4];
+            if (n.Length == 0) return;
+            _host.Territory.Data.AppRules.RemoveAll(x => string.Equals(x.ProcessName, n, StringComparison.OrdinalIgnoreCase));
+            _host.Territory.Data.AppRules.Add(new AppPresenceRule { ProcessName = n, PresenceMode = appModes[Math.Max(0, modeBox.SelectedIndex)] });
+            _host.Territory.NotifyChanged();
+            Build();
+        }, accent: true);
+        DockPanel.SetDock(add, Dock.Right);
+        addRow.Children.Add(add);
+        DockPanel.SetDock(modeBox, Dock.Right);
+        addRow.Children.Add(modeBox);
+        addRow.Children.Add(nameBox);
+        _content.Children.Add(addRow);
+        _content.Children.Add(Ui.Text("Quiet: calm down · Avoid: stay off that app's monitor · Hide: disappear while it is in front.", 11.5, dim: true));
+
+        Section("Utilities");
+        Check("React to heavy PC load (rarely, with long cooldowns)", s.PcStatusReactions, v => s.PcStatusReactions = v);
+        Check("Sounds (soft, only for items, reminders and timers)", s.Sounds, v => s.Sounds = v);
+
+        Section("System");
+        Check("Start with Windows", StartupService.IsEnabled(), v => { s.StartWithWindows = v; StartupService.Set(v); });
+        _content.Children.Add(Ui.Text("Data location: " + _host.Storage.Root, 12, dim: true));
+        var sys = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        sys.Children.Add(Btn("Open data folder", () => _host.OpenDataFolder()));
+        sys.Children.Add(Btn("Emergency hide: Ctrl+Alt+H" + (_host.HotkeyRegistered ? "" : " (unavailable — use the tray)"), () => { }, enabled: false));
+        _content.Children.Add(sys);
+    }
+
+    private void Section(string name)
+    {
+        var c = Ui.Caption(name);
+        c.Margin = new Thickness(0, 20, 0, 6);
+        c.Foreground = Ui.Brush("Accent");
+        _content.Children.Add(c);
+    }
+
+    private void Check(string label, bool value, Action<bool> set)
+    {
+        var cb = new CheckBox { Content = label, IsChecked = value };
+        cb.Click += (_, _) =>
+        {
+            set(cb.IsChecked == true);
+            _host.SettingsChanged();
+        };
+        _content.Children.Add(cb);
+    }
+
+    private void SliderRow(string label, double value, double min, double max, Action<double> set, Func<double, string> format)
+    {
+        var l = Ui.Text(label, 13);
+        var v = Ui.Text(format(value), 13, dim: true);
+        var slider = new Slider { Minimum = min, Maximum = max, Value = value, Width = 200, Margin = new Thickness(12, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        slider.ValueChanged += (_, e) =>
+        {
+            v.Text = format(e.NewValue);
+            set(e.NewValue);
+        };
+        var row = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
+        DockPanel.SetDock(v, Dock.Right);
+        row.Children.Add(v);
+        DockPanel.SetDock(slider, Dock.Right);
+        row.Children.Add(slider);
+        row.Children.Add(l);
+        _content.Children.Add(row);
+    }
+
+    private void Combo(string label, string[] items, int index, Action<int> set)
+    {
+        var l = Ui.Text(label, 13);
+        l.VerticalAlignment = VerticalAlignment.Center;
+        var cb = new ComboBox { ItemsSource = items, SelectedIndex = index, MinWidth = 160 };
+        cb.SelectionChanged += (_, _) =>
+        {
+            set(cb.SelectedIndex);
+            _host.SettingsChanged();
+        };
+        var row = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
+        DockPanel.SetDock(cb, Dock.Right);
+        row.Children.Add(cb);
+        row.Children.Add(l);
+        _content.Children.Add(row);
+    }
+
+    private static Button Btn(string label, Action click, bool accent = false, bool enabled = true)
+    {
+        var b = Ui.Button(label, click, accent ? "AccentButton" : null);
+        b.Margin = new Thickness(0, 0, 8, 6);
+        b.IsEnabled = enabled;
+        return b;
+    }
+}

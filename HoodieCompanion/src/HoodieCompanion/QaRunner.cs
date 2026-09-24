@@ -1,0 +1,359 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using HoodieCompanion.Companion.Behavior;
+using HoodieCompanion.Companion.Physics;
+using HoodieCompanion.Geometry;
+using HoodieCompanion.Platform;
+using HoodieCompanion.Settings;
+using HoodieCompanion.UI;
+
+namespace HoodieCompanion;
+
+/// <summary>
+/// Automated end-to-end QA scenario for the real (Release) executable:
+///   HoodieCompanion.exe --qa &lt;outDir&gt; [--data &lt;tempDataDir&gt;]
+/// Drives the companion through life, walking, grab/throw, the Backpack, every panel page, a reminder,
+/// Leave me alone / Come back and Quiet mode; saves snapshots and a PASS/FAIL report, then exits.
+/// The cursor is simulated so the user's real mouse is never touched.
+/// </summary>
+public sealed class QaRunner
+{
+    private readonly AppHost _host;
+    private readonly string _out;
+    private readonly bool _keep;
+    private readonly List<(double At, string Name, Action Act)> _steps = new();
+    private readonly List<string> _checks = new();
+    private readonly List<double> _fps = new();
+    private readonly HashSet<BehaviorState> _seenStates = new();
+    private readonly Stopwatch _watch = new();
+    private readonly DispatcherTimer _timer;
+    private readonly Process _self = Process.GetCurrentProcess();
+    private int _next;
+    private bool _failed;
+    private Vec2 _cursorFrom, _cursorTo;
+    private double _cursorStart = -1, _cursorDur;
+    private double _calmCpu = -1;
+    private long _peakMem;
+
+    public QaRunner(AppHost host, string outDir, bool keep)
+    {
+        _host = host;
+        _out = Path.GetFullPath(outDir);
+        _keep = keep;
+        Directory.CreateDirectory(_out);
+        _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(15) };
+        _timer.Tick += (_, _) => Tick();
+    }
+
+    private double Now => _watch.Elapsed.TotalSeconds;
+
+    private void At(double t, string name, Action act) => _steps.Add((t, name, act));
+
+    private void Check(bool ok, string what)
+    {
+        _checks.Add($"{(ok ? "PASS" : "FAIL")}  {what}");
+        if (!ok) _failed = true;
+        Log.Info("QA " + (ok ? "PASS " : "FAIL ") + what);
+    }
+
+    public void Start()
+    {
+        var pet = _host.Pet;
+        var world = _host.World;
+        var prim = world.Primary.WorkArea;
+        var far = new Vec2(prim.Left + 10, prim.Top + 10);
+        _host.CursorOverride = far;
+        _host.ButtonOverride = false;
+        _host.Settings.FirstRunDone = true;
+        var testFile = Path.Combine(_out, "test.txt");
+        File.WriteAllText(testFile, "Hello from the Hoodie QA run.");
+        var testFolder = Directory.CreateDirectory(Path.Combine(_out, "Test Folder")).FullName;
+
+        At(1.6, "appear", () =>
+        {
+            Check(_host.LastRender.Visible, "character appears after launch");
+            SnapPet("01-appear");
+            SnapDesktop("01-desktop");
+        });
+        At(2.0, "walk", () => pet.TravelTo(new Vec2(prim.Left + prim.Width * 0.45, prim.Bottom), false, null));
+        At(3.2, "walk-snap", () =>
+        {
+            Check(_seenStates.Contains(BehaviorState.Walking) || _seenStates.Contains(BehaviorState.Turning), "walks autonomously / on request");
+            SnapPet("02-walk");
+        });
+        At(5.0, "prepare grab", () => pet.Place(new Vec2(prim.Left + prim.Width * 0.35, prim.Bottom), appear: false));
+        At(5.6, "grab", () =>
+        {
+            var hood = pet.Transform.LocalToWorld(new Vec2(272, 140));
+            _host.CursorOverride = hood;
+            Check(pet.BeginGrab(hood), "grab by the hood starts");
+            MoveCursor(hood, hood + new Vec2(-world.Primary.Scale * 60, -world.Primary.Scale * 200), 0.6);
+        });
+        At(6.0, "grab-snap", () =>
+        {
+            Check(pet.State == BehaviorState.Grabbed, "held state while dragging");
+            SnapPet("03-grabbed");
+        });
+        At(6.3, "swing", () =>
+        {
+            var c = _host.CursorOverride!.Value;
+            MoveCursor(c, c + new Vec2(world.Primary.Scale * 520, -world.Primary.Scale * 60), 0.16);
+        });
+        At(6.47, "release", () =>
+        {
+            pet.EndGrab(_host.CursorOverride!.Value);
+            Check(pet.State == BehaviorState.Airborne && pet.Physics.Velocity.Length > 200, $"release gives throw velocity ({pet.Physics.Velocity.Length:0} px/s)");
+            _host.CursorOverride = far;
+        });
+        At(6.62, "air-snap", () => SnapPet("04-thrown"));
+        At(9.0, "landed", () =>
+        {
+            Check(_seenStates.Contains(BehaviorState.Landing), "lands after the throw");
+            Check(world.MonitorAt(pet.Feet) is not null, "still inside the world after the throw");
+            SnapPet("05-landed");
+        });
+        At(10.0, "give file", () =>
+        {
+            pet.Place(new Vec2(prim.Left + prim.Width * 0.5, prim.Bottom), appear: false);
+            _host.GiveItems(new[] { testFile });
+        });
+        At(10.35, "catch-snap", () => SnapPet("06-catch"));
+        At(10.8, "inspect-snap", () => SnapPet("07-inspect"));
+        At(11.6, "stored", () =>
+        {
+            Check(_host.Inventory.Items.Any(i => i.Target == testFile), "dropped file stored in Backpack");
+            var saved = File.ReadAllText(_host.Storage.PathFor("inventory.json"));
+            Check(saved.Contains("test.txt"), "Backpack persisted to inventory.json");
+            _host.GiveItems(new[] { testFolder, "https://example.com" });
+        });
+        At(13.0, "panel home", () => _host.OpenPanel(PanelPage.Home));
+        At(13.6, "panel-snap", () => SnapWindow(_host.Panel, "08-panel-home"));
+        var pages = new[] { PanelPage.Backpack, PanelPage.Notes, PanelPage.Reminder, PanelPage.Timer, PanelPage.PcStatus, PanelPage.Commands };
+        for (var p = 0; p < pages.Length; p++)
+        {
+            var page = pages[p];
+            var t = 14.0 + p * 1.2;
+            At(t, "page " + page, () => _host.Panel.Show(page));
+            At(t + (page == PanelPage.PcStatus ? 1.1 : 0.6), "snap " + page, () => SnapWindow(_host.Panel, $"{9 + Array.IndexOf(pages, page):00}-panel-{page.ToString().ToLowerInvariant()}"));
+        }
+        At(21.5, "close panel", () => _host.Panel.Close(animated: false));
+        At(22.0, "remove", () =>
+        {
+            var item = _host.Inventory.Items.First(i => i.Target == testFile);
+            _host.RemoveItem(item);
+            Check(File.Exists(testFile) && File.ReadAllText(testFile).StartsWith("Hello"), "removing from Backpack keeps the original file");
+        });
+        At(22.5, "reminder", () => _host.AddReminder("Stretch your legs", DateTime.Now.AddSeconds(1.5)));
+        At(26.2, "reminder-snap", () =>
+        {
+            Check(pet.State == BehaviorState.Alert && _host.Alerts.IsShowing, "reminder alert: Hoodie holds up the note + card");
+            SnapPet("15-reminder-pet");
+            SnapWindow(_host.Alerts, "15-reminder-card");
+        });
+        At(26.8, "ack", () => _host.CloseAlert(dismissed: true));
+        At(27.4, "alone", () => _host.SetMode(PresenceMode.Alone));
+        At(28.3, "leaving-snap", () => SnapPet("16-leaving"));
+        At(42.0, "alone-check", () =>
+        {
+            Check(pet.State == BehaviorState.Hidden && !_host.LastRender.Visible, "Leave me alone: Hoodie exits and stays hidden");
+            SnapDesktop("17-alone-desktop");
+            _host.Command(PetCommand.ComeBack);
+        });
+        At(47.0, "back-check", () =>
+        {
+            Check(_host.LastRender.Visible && world.MonitorAt(pet.Feet) is not null, "Come back: Hoodie returns");
+            SnapPet("18-back");
+        });
+        At(47.5, "quiet", () => _host.SetMode(PresenceMode.Quiet));
+        At(51.0, "quiet-snap", () =>
+        {
+            Check(pet.State is BehaviorState.Sitting or BehaviorState.Sleeping, "Quiet mode: sits calmly");
+            SnapPet("19-quiet");
+            _cpuStart = (_self.TotalProcessorTime, Now);
+        });
+        At(56.0, "calm cpu", () =>
+        {
+            _self.Refresh();
+            var used = (_self.TotalProcessorTime - _cpuStart.Cpu).TotalSeconds / (Now - _cpuStart.At) / Environment.ProcessorCount * 100;
+            _calmCpu = used;
+            Check(used < 15, $"calm CPU usage is low ({used:0.0}% of all cores)");
+        });
+        At(56.5, "settings", () => _host.ShowSettings());
+        At(57.5, "settings-snap", () =>
+        {
+            var w = Application.Current.Windows.OfType<SettingsWindow>().FirstOrDefault();
+            if (w is not null)
+            {
+                SnapWindow(w, "20-settings");
+                w.Close();
+            }
+        });
+        At(58.0, "territory", () => _host.ShowTerritoryEditor());
+        At(59.0, "territory-snap", () => SnapDesktop("21-territory-editor"));
+        At(59.5, "territory-close", () =>
+        {
+            foreach (var w in Application.Current.Windows.OfType<Window>().Where(w => w.Title is "Territory" or "Hoodie territory").ToList()) w.Close();
+        });
+        At(60.0, "normal", () => _host.SetMode(PresenceMode.Normal));
+        if (world.Monitors.Count > 1)
+        {
+            var other = world.Monitors.First(m => m != world.Primary);
+            At(60.5, "travel monitor", () => pet.TravelTo(new Vec2(other.WorkArea.Center.X, other.WorkArea.Bottom), true, null));
+            At(75.0, "travel-check", () => Check(world.MonitorAt(pet.Feet) == other, "travels to the other monitor"));
+        }
+        At(world.Monitors.Count > 1 ? 76 : 61, "report", Finish);
+
+        _watch.Start();
+        _timer.Start();
+        Log.Info("QA scenario started, output: " + _out);
+    }
+
+    private (TimeSpan Cpu, double At) _cpuStart;
+
+    private void MoveCursor(Vec2 from, Vec2 to, double seconds)
+    {
+        _cursorFrom = from;
+        _cursorTo = to;
+        _cursorStart = Now;
+        _cursorDur = seconds;
+    }
+
+    private void Tick()
+    {
+        var now = Now;
+        _seenStates.Add(_host.Pet.State);
+        if (_cursorStart >= 0)
+        {
+            var k = Math.Min(1, (now - _cursorStart) / _cursorDur);
+            _host.CursorOverride = Vec2.Lerp(_cursorFrom, _cursorTo, k);
+            if (k >= 1) _cursorStart = -1;
+        }
+        if ((int)(now * 4) != (int)((now - 0.015) * 4))
+        {
+            _fps.Add(_host.Clock.FramesPerSecond);
+            _self.Refresh();
+            _peakMem = Math.Max(_peakMem, _self.WorkingSet64);
+        }
+        while (_next < _steps.Count && _steps[_next].At <= now)
+        {
+            var step = _steps[_next++];
+            try
+            {
+                step.Act();
+            }
+            catch (Exception ex)
+            {
+                Check(false, $"step '{step.Name}' threw {ex.GetType().Name}: {ex.Message}");
+                Log.Error("QA step " + step.Name, ex);
+            }
+        }
+    }
+
+    private void SnapPet(string name)
+    {
+        var w = _host.PetWindow;
+        if (w.Content is FrameworkElement fe) Save(fe, name, withBackground: true);
+    }
+
+    private void SnapWindow(Window w, string name)
+    {
+        if (w.Content is FrameworkElement fe && fe.ActualWidth > 0) Save(fe, name, withBackground: false);
+        else Check(false, $"window for {name} had no content");
+    }
+
+    private void Save(FrameworkElement fe, string name, bool withBackground)
+    {
+        try
+        {
+            var width = Math.Max(1, fe.ActualWidth > 0 ? fe.ActualWidth : fe.Width);
+            var height = Math.Max(1, fe.ActualHeight > 0 ? fe.ActualHeight : fe.Height);
+            const double scale = 2;
+            var bmp = new RenderTargetBitmap((int)(width * scale), (int)(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            if (withBackground)
+            {
+                // Background first, then the element itself (RenderTargetBitmap accumulates).
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xF2, 0xBD, 0x60)), null, new Rect(0, 0, width, height));
+                }
+                bmp.Render(dv);
+            }
+            bmp.Render(fe);
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(bmp));
+            using var fs = File.Create(Path.Combine(_out, name + ".png"));
+            enc.Save(fs);
+        }
+        catch (Exception ex)
+        {
+            Check(false, $"snapshot {name} failed: {ex.Message}");
+        }
+    }
+
+    private void SnapDesktop(string name)
+    {
+        try
+        {
+            var e = _host.World.Monitors.Select(m => m.Bounds).Aggregate((a, b) => RectD.FromEdges(Math.Min(a.Left, b.Left), Math.Min(a.Top, b.Top), Math.Max(a.Right, b.Right), Math.Max(a.Bottom, b.Bottom)));
+            using var bmp = new System.Drawing.Bitmap((int)e.Width, (int)e.Height);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                g.CopyFromScreen((int)e.Left, (int)e.Top, 0, 0, bmp.Size);
+            }
+            var w = Math.Min(1600, bmp.Width);
+            var h = (int)(bmp.Height * (w / (double)bmp.Width));
+            using var small = new System.Drawing.Bitmap(bmp, new System.Drawing.Size(w, h));
+            small.Save(Path.Combine(_out, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        catch (Exception ex)
+        {
+            Log.Info($"desktop snapshot {name} unavailable: {ex.Message}");
+        }
+    }
+
+    private void Finish()
+    {
+        _timer.Stop();
+        Check(Log.ErrorCount == 0, $"no errors logged ({Log.ErrorCount})");
+        var validFps = _fps.Where(f => f > 0).ToList();
+        var sb = new StringBuilder();
+        sb.AppendLine("Hoodie Companion — automated QA report");
+        sb.AppendLine($"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"OS: {Environment.OSVersion}  .NET: {Environment.Version}  64-bit: {Environment.Is64BitProcess}");
+        sb.AppendLine($"Monitors: {_host.World.Fingerprint}");
+        sb.AppendLine($"Frame rate while active: avg {(validFps.Count > 0 ? validFps.Average() : 0):0.0} fps, max {(validFps.Count > 0 ? validFps.Max() : 0):0.0}");
+        sb.AppendLine($"Calm CPU (Quiet, sitting): {_calmCpu:0.00}% of all cores");
+        sb.AppendLine($"Frame logic (simulation + scene update, excl. WPF render): {_host.FrameLogicMs:0.000} ms/frame");
+        sb.AppendLine($"Peak working set: {_peakMem / 1048576.0:0} MB");
+        sb.AppendLine($"States seen: {string.Join(", ", _seenStates.OrderBy(s => s.ToString()))}");
+        sb.AppendLine();
+        foreach (var c in _checks) sb.AppendLine(c);
+        sb.AppendLine();
+        sb.AppendLine(_failed ? "RESULT: FAIL" : "RESULT: PASS");
+        sb.AppendLine();
+        sb.AppendLine("Recent transitions:");
+        foreach (var t in _host.Pet.Machine.RecentTransitions) sb.AppendLine("  " + t);
+        File.WriteAllText(Path.Combine(_out, "qa-report.txt"), sb.ToString());
+        Log.Info("QA finished: " + (_failed ? "FAIL" : "PASS"));
+        if (!_keep)
+        {
+            _host.CursorOverride = null;
+            _host.ButtonOverride = null;
+            _host.Exit();
+        }
+        else
+        {
+            _host.CursorOverride = null;
+            _host.ButtonOverride = null;
+        }
+    }
+}

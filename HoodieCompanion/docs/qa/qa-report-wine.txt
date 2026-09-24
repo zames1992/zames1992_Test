@@ -1,0 +1,56 @@
+Hoodie Companion — automated QA report
+Date: 2026-09-24 19:14:07
+OS: Microsoft Windows NT 10.0.19043.0  .NET: 8.0.31  64-bit: True
+Monitors: \\.\DISPLAY1:[0,0 1920x1080]:[0,0 1920x1080]:1.00
+Frame rate while active: avg 35.8 fps, max 62.4
+Calm CPU (Quiet, sitting): 4.32% of all cores
+Frame logic (simulation + scene update, excl. WPF render): 0.137 ms/frame
+Peak working set: 716 MB
+States seen: Airborne, Alert, Appearing, Emote, Grabbed, Hidden, Idle, Landing, Leaving, ReceivingItem, Returning, ShowingBackpack, Sitting, Walking
+
+PASS  character appears after launch
+PASS  walks autonomously / on request
+PASS  grab by the hood starts
+PASS  held state while dragging
+PASS  release gives throw velocity (3520 px/s)
+PASS  lands after the throw
+PASS  still inside the world after the throw
+PASS  dropped file stored in Backpack
+PASS  Backpack persisted to inventory.json
+PASS  removing from Backpack keeps the original file
+PASS  reminder alert: Hoodie holds up the note + card
+PASS  Leave me alone: Hoodie exits and stays hidden
+PASS  Come back: Hoodie returns
+PASS  Quiet mode: sits calmly
+PASS  calm CPU usage is low (4.3% of all cores)
+PASS  no errors logged (0)
+
+RESULT: PASS
+
+Recent transitions:
+  Idle -> Appearing (appear)
+  Appearing -> Idle (appeared)
+  Idle -> Walking (walk)
+  Walking -> Idle (placed)
+  Idle -> Walking (walk)
+  Walking -> Grabbed (grabbed)
+  Grabbed -> Airborne (thrown)
+  Airborne -> Landing (landed 1223 dip/s)
+  Landing -> Idle (recovered)
+  Idle -> Idle (placed)
+  Idle -> ReceivingItem (sequence)
+  ReceivingItem -> ReceivingItem (sequence)
+  ReceivingItem -> Idle (sequence done)
+  Idle -> ShowingBackpack (backpack open)
+  ShowingBackpack -> Idle (backpack closed)
+  Idle -> Emote (Success)
+  Emote -> Idle (emote done)
+  Idle -> ReceivingItem (sequence)
+  ReceivingItem -> Alert (Reminder)
+  Alert -> Idle (alert acknowledged)
+  Idle -> Emote (Success)
+  Emote -> Leaving (leave me alone)
+  Leaving -> Hidden (left the screen)
+  Hidden -> Returning (come back)
+  Returning -> Idle (returned)
+  Idle -> Sitting (sit)

@@ -1,0 +1,827 @@
+using HoodieCompanion.Companion.Animation;
+using HoodieCompanion.Companion.Interaction;
+using HoodieCompanion.Companion.Physics;
+using HoodieCompanion.Features.SystemMonitor;
+using HoodieCompanion.Geometry;
+using HoodieCompanion.Presence;
+using HoodieCompanion.Settings;
+
+namespace HoodieCompanion.Companion.Behavior;
+
+public sealed partial class PetController
+{
+    private double _nextDecisionAt;
+    private double _userIdle;
+    private double _sitUntil;
+    private bool _sleepAfterSit;
+    private double _sleepUntil;
+    private bool _worldAsleep;
+    private bool _sleptBecauseUserAway;
+
+    private AnimClip _emote;
+    private Action? _afterEmote;
+    private BehaviorState _emoteReturn = BehaviorState.Idle;
+
+    private readonly Queue<(AnimClip Clip, double? Duration)> _sequence = new();
+    private Action? _afterSequence;
+
+    private AlertKind? _alert;
+    private bool _backpackOpen;
+    private bool _dragHovering;
+
+    public bool IsReceivingDrag => _dragHovering;
+
+    private double _lookWeight;
+    private double _lookScriptUntil;
+    private double _cursorOtherSide;
+    private double _nextStepAside;
+
+    private PresenceMode _modeBeforeAlone;
+    private bool _leavingThroughEdge;
+    private Vec2 _exitFeet;
+    private bool _exitWasEdge;
+    private Vec2? _poofTarget;
+    private Action? _afterPoof;
+
+    // ------------------------------------------------------------------ idle & decisions
+
+    private void ScheduleDecision(double inSeconds) => _nextDecisionAt = _time + inSeconds;
+
+    private void UpdateIdle()
+    {
+        if (Animation.Current != AnimClip.IdleBreathing && (Animation.IsFinished || Animation.CurrentInfo.Loop))
+            Animation.Play(AnimClip.IdleBreathing);
+
+        var m = Metrics;
+        // Standing somewhere Hoodie is not allowed to stop (e.g. thrown into a NO_GO area)? Walk out.
+        if (!Territory.CanStop(Feet, m.HeightPx) && !IsHiddenMode)
+        {
+            WalkToAllowedSpot();
+            return;
+        }
+
+        if (_time < _nextDecisionAt) return;
+        ScheduleDecision(Brain.NextDecisionDelay(EffectiveMode));
+        Decide();
+    }
+
+    private bool IsHiddenMode => Mode == PresenceMode.Alone;
+
+    private void WalkToAllowedSpot()
+    {
+        var m = Metrics;
+        var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+        var x = Territory.NearestStandableX(mon, Feet.X, m.HeightPx, m.HalfWidthPx);
+        if (x is double sx && Math.Abs(sx - Feet.X) > 2)
+        {
+            StartWalk(sx, run: false, onArrive: null, ignoreTerritory: true);
+            return;
+        }
+        // Nowhere on this monitor: find another monitor, else travel home.
+        var other = Territory.StandableMonitors(m.HeightPx, m.HalfWidthPx).FirstOrDefault();
+        if (other is not null && other != mon)
+        {
+            var ox = Territory.NearestStandableX(other, other.WorkArea.Center.X, m.HeightPx, m.HalfWidthPx) ?? other.WorkArea.Center.X;
+            TravelTo(new Vec2(ox, other.WorkArea.Bottom), run: false, onArrive: null, ignoreTerritory: true);
+            return;
+        }
+        ScheduleDecision(5);
+    }
+
+    private void Decide()
+    {
+        var m = Metrics;
+        var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+        var mode = EffectiveMode;
+
+        if (!Settings.AutonomousBehavior && mode != PresenceMode.Focus)
+        {
+            // Autonomy off: Hoodie stays put and only rests now and then.
+            if (Drives.Energy < 0.3 || _userIdle > 300) BeginSit(sleepAfter: true);
+            return;
+        }
+
+        var distToEdge = Math.Min(Feet.X - mon.WorkArea.Left, mon.WorkArea.Right - Feet.X);
+        var otherMonitors = Territory.StandableMonitors(m.HeightPx, m.HalfWidthPx).Where(o => o != mon).ToList();
+        var cursorMon = World.MonitorAt(_cursor);
+        var ctx = new DecisionContext(
+            mode,
+            Drives,
+            HasItems,
+            distToEdge < m.HalfWidthPx * 5,
+            otherMonitors.Count > 0 && Territory.Anchor is null,
+            _userIdle,
+            cursorMon == mon && _cursor.Y > mon.WorkArea.Bottom - Dip(260),
+            IsAtRestSpot(),
+            Settings.ReducedMotion);
+
+        var act = Brain.Choose(ctx);
+        Log?.Invoke($"decide {act} (mode {mode})");
+        switch (act)
+        {
+            case Activity.Wander:
+            case Activity.Run:
+            {
+                var run = act == Activity.Run;
+                var span = mode == PresenceMode.Quiet ? 160 : run ? 700 : 480;
+                for (var i = 0; i < 8; i++)
+                {
+                    var dist = Dip(80 + _rng.NextDouble() * span) * (_rng.NextDouble() < 0.5 ? -1 : 1);
+                    var x = Feet.X + dist;
+                    x = Math.Clamp(x, mon.WorkArea.Left + m.HalfWidthPx, mon.WorkArea.Right - m.HalfWidthPx);
+                    if (Territory.Anchor is { } a) x = Math.Clamp(x, a.Center.X - a.RadiusPx, a.Center.X + a.RadiusPx);
+                    if (Math.Abs(x - Feet.X) < Dip(30)) continue;
+                    if (!Territory.CanStop(new Vec2(x, Feet.Y), m.HeightPx)) continue;
+                    StartWalk(x, run, null);
+                    return;
+                }
+                break;
+            }
+            case Activity.Explore:
+            {
+                var target = otherMonitors.OrderBy(o => o.WorkArea.Center.X - Feet.X is var d ? Math.Abs(d) : 0).First();
+                var x = target.WorkArea.Left + target.WorkArea.Width * (0.2 + _rng.NextDouble() * 0.6);
+                if (TravelTo(new Vec2(x, target.WorkArea.Bottom), run: mode == PresenceMode.Play, onArrive: () => PlayEmote(AnimClip.Curious)))
+                    Drives.OnExplored();
+                break;
+            }
+            case Activity.Sit:
+                BeginSit(sleepAfter: false);
+                break;
+            case Activity.Sleep:
+                _sleptBecauseUserAway = _userIdle > 240;
+                BeginSit(sleepAfter: true);
+                break;
+            case Activity.Stretch:
+                PlayEmote(AnimClip.Stretch);
+                break;
+            case Activity.Yawn:
+                PlayEmote(AnimClip.Yawn);
+                break;
+            case Activity.LookAround:
+                _lookScriptUntil = _time + 3.2;
+                break;
+            case Activity.PeekEdge:
+            {
+                var dir = Feet.X - mon.WorkArea.Left < mon.WorkArea.Right - Feet.X ? -1 : 1;
+                var edgeX = dir < 0 ? mon.WorkArea.Left + m.HalfWidthPx * 0.9 : mon.WorkArea.Right - m.HalfWidthPx * 0.9;
+                if (!Territory.CanStop(new Vec2(edgeX, Feet.Y), m.HeightPx)) break;
+                StartWalk(edgeX, false, () =>
+                {
+                    if (Facing != dir) TurnThen(() => PlayEmote(AnimClip.PeekEdge));
+                    else PlayEmote(AnimClip.PeekEdge);
+                    Drives.OnExplored();
+                });
+                break;
+            }
+            case Activity.InspectBackpack:
+                RunSequence(BehaviorState.ReceivingItem, new() { (AnimClip.OpenBackpack, null), (AnimClip.SearchBackpack, 2.4) }, null);
+                break;
+            case Activity.Hop:
+            {
+                // A playful hop forward, or straight up when the spot ahead is off limits.
+                var ahead = Feet + new Vec2(Facing * Dip(20), 0);
+                var ok = mon.WorkArea.ContainsX(ahead.X + Facing * m.HalfWidthPx) && Territory.CanStop(ahead, m.HeightPx);
+                JumpTo(ok ? ahead : Feet, extraApexDip: 70);
+                break;
+            }
+            case Activity.StayNearUser:
+            {
+                if (cursorMon is null) break;
+                var side = Feet.X < _cursor.X ? -1 : 1;
+                var x = _cursor.X + side * Dip(160 + _rng.NextDouble() * 140);
+                if (Math.Abs(x - Feet.X) < Dip(90) && cursorMon == mon)
+                {
+                    BeginSit(sleepAfter: false);
+                    break;
+                }
+                TravelTo(new Vec2(x, cursorMon.WorkArea.Bottom), run: false, onArrive: () => { if (_rng.NextDouble() < 0.5) BeginSit(false); });
+                break;
+            }
+            case Activity.ChaseCursor:
+            {
+                var x = _cursor.X + (Feet.X < _cursor.X ? -1 : 1) * Dip(40);
+                StartWalk(Math.Clamp(x, mon.WorkArea.Left + m.HalfWidthPx, mon.WorkArea.Right - m.HalfWidthPx), run: true,
+                    onArrive: () => { if (!Animation.IsOnCooldown(AnimClip.Wave)) PlayEmote(AnimClip.Wave); }, chase: true);
+                break;
+            }
+            case Activity.GoRestSpot:
+                GoToRestSpot(then: () => BeginSit(sleepAfter: false));
+                break;
+        }
+    }
+
+    private bool IsAtRestSpot()
+    {
+        var m = Metrics;
+        if (Territory.IsQuietAt(Feet, m.HeightPx)) return true;
+        var home = Territory.HomeFeet();
+        if (home is Vec2 h) return Vec2.Distance(h, Feet) < Dip(Territory.Data.Home!.AllowedRadiusDip);
+        return false;
+    }
+
+    /// <summary>Focus / Quiet: a calm place away from the user's active work.</summary>
+    private void GoToRestSpot(Action? then)
+    {
+        var m = Metrics;
+        var home = Territory.HomeFeet();
+        if (home is Vec2 h && Territory.CanStop(h, m.HeightPx) && TravelTo(h, false, then)) return;
+
+        // A Quiet region, if the user drew one.
+        foreach (var r in Territory.Data.Regions.Where(r => r.Type == RegionType.Quiet))
+        {
+            var rect = Territory.ResolveRegion(r);
+            var mon = World.FindById(r.MonitorId);
+            if (rect is null || mon is null) continue;
+            if (TravelTo(new Vec2(rect.Value.Center.X, mon.WorkArea.Bottom), false, then)) return;
+        }
+
+        // Otherwise the corner of the world farthest from the user's hand.
+        var cur = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+        var cursorMon = World.MonitorAt(_cursor);
+        var candidates = Territory.StandableMonitors(m.HeightPx, m.HalfWidthPx).ToList();
+        var target = candidates.FirstOrDefault(c => c != cursorMon && c.Id != _foregroundMonitorId) ?? cur;
+        var left = target.WorkArea.Left + m.HalfWidthPx * 1.5;
+        var right = target.WorkArea.Right - m.HalfWidthPx * 1.5;
+        var x = Math.Abs(_cursor.X - left) > Math.Abs(_cursor.X - right) ? left : right;
+        if (!TravelTo(new Vec2(x, target.WorkArea.Bottom), false, then)) then?.Invoke();
+    }
+
+    // ------------------------------------------------------------------ rest
+
+    private void BeginSit(bool sleepAfter)
+    {
+        if (Machine.State == BehaviorState.Sitting)
+        {
+            if (sleepAfter) _sitUntil = _time;
+            _sleepAfterSit = sleepAfter;
+            return;
+        }
+        _sleepAfterSit = sleepAfter;
+        var mode = EffectiveMode;
+        var (lo, hi) = mode switch
+        {
+            PresenceMode.Quiet or PresenceMode.Focus => (60.0, 240.0),
+            PresenceMode.Company => (20.0, 60.0),
+            PresenceMode.Play => (5.0, 12.0),
+            _ => (15.0, 60.0),
+        };
+        _sitUntil = _time + (sleepAfter ? 3 + _rng.NextDouble() * 4 : lo + _rng.NextDouble() * (hi - lo));
+        Go(BehaviorState.Sitting, "sit", force: true);
+        Animation.Play(AnimClip.SitDown, force: true);
+    }
+
+    private void UpdateSitting()
+    {
+        if (Animation.Current == AnimClip.SitDown && Animation.IsFinished) Animation.Play(AnimClip.SitIdle);
+        if (Animation.Current == AnimClip.StandUp)
+        {
+            if (Animation.IsFinished)
+            {
+                var then = _afterStand;
+                _afterStand = null;
+                Go(BehaviorState.Idle, "stood up", force: true);
+                Animation.Play(AnimClip.IdleBreathing);
+                then?.Invoke();
+            }
+            return;
+        }
+        if (Animation.Current is not (AnimClip.SitDown or AnimClip.SitIdle or AnimClip.WakeUp)) Animation.Play(AnimClip.SitIdle);
+        if (Animation.Current == AnimClip.WakeUp && Animation.IsFinished) Animation.Play(AnimClip.SitIdle);
+
+        if (_time < _sitUntil) return;
+        if (_sleepAfterSit || Drives.Energy < 0.2)
+        {
+            BeginSleep();
+            return;
+        }
+        StandUp(null);
+    }
+
+    private Action? _afterStand;
+
+    private void StandUp(Action? then)
+    {
+        _afterStand = then;
+        if (Machine.State != BehaviorState.Sitting) Go(BehaviorState.Sitting, "stand up", force: true);
+        Animation.Play(AnimClip.StandUp, force: true);
+    }
+
+    /// <summary>Stand before doing something that needs feet.</summary>
+    private void EnsureStanding(Action then)
+    {
+        switch (Machine.State)
+        {
+            case BehaviorState.Sleeping:
+                WakeUp(() => StandUp(then));
+                break;
+            case BehaviorState.Sitting:
+                StandUp(then);
+                break;
+            default:
+                then();
+                break;
+        }
+    }
+
+    private void BeginSleep()
+    {
+        var mode = EffectiveMode;
+        var minutes = mode is PresenceMode.Quiet or PresenceMode.Focus ? 4 + _rng.NextDouble() * 6 : 1.5 + _rng.NextDouble() * 3;
+        _sleepUntil = _time + minutes * 60;
+        Go(BehaviorState.Sleeping, "fall asleep", force: true);
+        Animation.Play(AnimClip.SleepStart, force: true);
+    }
+
+    private Action? _afterWake;
+
+    private void UpdateSleeping()
+    {
+        if (Animation.Current == AnimClip.SleepStart && Animation.IsFinished) Animation.Play(AnimClip.SleepLoop);
+        if (Animation.Current == AnimClip.WakeUp)
+        {
+            if (Animation.IsFinished)
+            {
+                var then = _afterWake;
+                _afterWake = null;
+                Go(BehaviorState.Sitting, "awake", force: true);
+                _sitUntil = _time + 3 + _rng.NextDouble() * 5;
+                _sleepAfterSit = false;
+                Animation.Play(AnimClip.SitIdle);
+                then?.Invoke();
+            }
+            return;
+        }
+        if (_worldAsleep) return;
+
+        var userBack = _sleptBecauseUserAway && _userIdle < 2;
+        if (_time >= _sleepUntil || (Drives.Energy > 0.97 && Machine.TimeInState > 90) || userBack)
+        {
+            _sleptBecauseUserAway = false;
+            WakeUp(null);
+        }
+    }
+
+    private void WakeUp(Action? then)
+    {
+        if (Machine.State != BehaviorState.Sleeping)
+        {
+            then?.Invoke();
+            return;
+        }
+        _afterWake = then;
+        Animation.Play(AnimClip.WakeUp, force: true);
+    }
+
+    // ------------------------------------------------------------------ emotes & sequences
+
+    /// <summary>Plays a one-shot expressive clip, returning to the previous calm state afterwards.</summary>
+    public bool PlayEmote(AnimClip clip, Action? after = null)
+    {
+        if (Machine.IsPhysical || Machine.State is BehaviorState.Hidden or BehaviorState.Leaving or BehaviorState.Returning
+                or BehaviorState.Alert or BehaviorState.Vanishing or BehaviorState.Appearing or BehaviorState.ReceivingItem
+                or BehaviorState.Recovering)
+            return false;
+        if (Animation.IsOnCooldown(clip)) return false;
+        if (Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping)
+        {
+            // Resting Hoodie does not jump up for small things.
+            return false;
+        }
+        if (Machine.State == BehaviorState.Walking) _walkTargetX = null;
+        _emote = clip;
+        _afterEmote = after;
+        _emoteReturn = BehaviorState.Idle;
+        Go(BehaviorState.Emote, clip.ToString(), force: true);
+        return Animation.Play(clip, force: true, restart: true);
+    }
+
+    private void UpdateEmote()
+    {
+        if (Animation.Current == _emote && !Animation.IsFinished) return;
+        var after = _afterEmote;
+        _afterEmote = null;
+        Go(_emoteReturn, "emote done", force: true);
+        Animation.Play(AnimClip.IdleBreathing);
+        after?.Invoke();
+    }
+
+    private void RunSequence(BehaviorState state, List<(AnimClip, double?)> steps, Action? after)
+    {
+        _sequence.Clear();
+        foreach (var s in steps) _sequence.Enqueue(s);
+        _afterSequence = after;
+        _walkTargetX = null;
+        Go(state, "sequence", force: true);
+        NextInSequence();
+    }
+
+    private double _sequenceStepDuration;
+
+    private void NextInSequence()
+    {
+        if (_sequence.Count == 0)
+        {
+            var after = _afterSequence;
+            _afterSequence = null;
+            if (Machine.State is BehaviorState.ReceivingItem or BehaviorState.Recovering)
+            {
+                Go(BehaviorState.Idle, "sequence done", force: true);
+                Animation.Play(AnimClip.IdleBreathing);
+            }
+            after?.Invoke();
+            return;
+        }
+        var (clip, dur) = _sequence.Dequeue();
+        _sequenceStepDuration = dur ?? AnimationCatalog.Get(clip).Duration;
+        Animation.Play(clip, force: true, restart: true);
+    }
+
+    private void UpdateSequence()
+    {
+        if (Animation.ClipTime >= _sequenceStepDuration) NextInSequence();
+    }
+
+    // ------------------------------------------------------------------ inventory
+
+    public void DragEntered()
+    {
+        _dragHovering = true;
+        if (!CanReact) return;
+        if (Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping) return;
+        _walkTargetX = null;
+        Go(BehaviorState.ReceivingItem, "drag enter", force: true);
+        _sequence.Clear();
+        _afterSequence = null;
+        _sequenceStepDuration = double.MaxValue;
+        Animation.Play(AnimClip.NoticeItem, force: true, restart: true);
+    }
+
+    public void DragLeft()
+    {
+        _dragHovering = false;
+        if (Machine.State == BehaviorState.ReceivingItem && Animation.Current == AnimClip.NoticeItem)
+        {
+            Go(BehaviorState.Idle, "drag left", force: true);
+            Animation.Play(AnimClip.IdleBreathing);
+        }
+    }
+
+    /// <summary>An object was given to Hoodie: Notice → Catch → Inspect → Put in Backpack (≈1.3 s).</summary>
+    public void ItemReceived(bool alreadyHad)
+    {
+        _dragHovering = false;
+        if (!CanReact && Machine.State != BehaviorState.ReceivingItem) return;
+        var steps = new List<(AnimClip, double?)>();
+        if (Animation.Current != AnimClip.NoticeItem) steps.Add((AnimClip.NoticeItem, 0.2));
+        steps.Add((AnimClip.CatchItem, null));
+        steps.Add((AnimClip.InspectItem, alreadyHad ? 0.25 : null));
+        steps.Add((AnimClip.PutInBackpack, null));
+        RunSequence(BehaviorState.ReceivingItem, steps, null);
+    }
+
+    public void BackpackOpened(bool open)
+    {
+        _backpackOpen = open;
+        if (open)
+        {
+            if (!CanReact || Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping) return;
+            _walkTargetX = null;
+            Go(BehaviorState.ShowingBackpack, "backpack open", force: true);
+            Animation.Play(AnimClip.OpenBackpack, force: true);
+        }
+        else if (Machine.State == BehaviorState.ShowingBackpack)
+        {
+            Go(BehaviorState.Idle, "backpack closed", force: true);
+            Animation.Play(AnimClip.IdleBreathing);
+        }
+    }
+
+    private void UpdateBackpack()
+    {
+        if (Animation.Current == AnimClip.OpenBackpack && Animation.IsFinished) Animation.Play(AnimClip.SearchBackpack);
+        if (Animation.Current == AnimClip.PresentItem && Animation.IsFinished) Animation.Play(AnimClip.SearchBackpack);
+        if (Animation.Current == AnimClip.MissingItem && Animation.IsFinished) Animation.Play(AnimClip.SearchBackpack);
+        if (!_backpackOpen)
+        {
+            Go(BehaviorState.Idle, "backpack closed", force: true);
+            Animation.Play(AnimClip.IdleBreathing);
+        }
+    }
+
+    /// <summary>Hands an item back (the user opened it from the Backpack).</summary>
+    public void ItemPresented() => Feedback(AnimClip.PresentItem);
+
+    /// <summary>The stored object is gone: search, then shrug.</summary>
+    public void ItemMissing() => Feedback(AnimClip.MissingItem);
+
+    /// <summary>Utility feedback (Thinking, Success, Error, PresentItem, MissingItem).</summary>
+    public void Feedback(AnimClip clip)
+    {
+        if (Machine.State == BehaviorState.ShowingBackpack)
+        {
+            Animation.Play(clip, force: true, restart: true);
+            return;
+        }
+        if (Machine.State is BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Emote)
+        {
+            if (clip is AnimClip.PresentItem or AnimClip.MissingItem)
+                RunSequence(BehaviorState.ReceivingItem, new() { (clip, null) }, null);
+            else
+                PlayEmote(clip);
+        }
+    }
+
+    private bool CanReact => !Machine.IsPhysical && Machine.State is not (BehaviorState.Hidden or BehaviorState.Leaving
+        or BehaviorState.Returning or BehaviorState.Vanishing or BehaviorState.Appearing or BehaviorState.Alert or BehaviorState.Recovering);
+
+    // ------------------------------------------------------------------ alerts
+
+    public void StartAlert(AlertKind kind)
+    {
+        _alert = kind;
+        if (Machine.State is BehaviorState.Hidden or BehaviorState.Leaving || Machine.IsPhysical) return;
+        _walkTargetX = null;
+        _travel = null;
+        Go(BehaviorState.Alert, kind.ToString(), force: true);
+        Animation.Play(kind == AlertKind.Reminder ? AnimClip.ReminderAlert : AnimClip.TimerAlert, force: true, restart: true);
+    }
+
+    public void EndAlert()
+    {
+        _alert = null;
+        if (Machine.State != BehaviorState.Alert) return;
+        Go(BehaviorState.Idle, "alert acknowledged", force: true);
+        Animation.Play(AnimClip.IdleBreathing, force: true);
+        PlayEmote(AnimClip.Success);
+    }
+
+    // ------------------------------------------------------------------ environment
+
+    public void Environment(EnvironmentMood mood)
+    {
+        if (!Settings.PcStatusReactions) return;
+        if (EffectiveMode is PresenceMode.Focus || Machine.State != BehaviorState.Idle) return;
+        switch (mood)
+        {
+            case EnvironmentMood.Busy:
+                Drives.OnEnvironmentBusy();
+                PlayEmote(AnimClip.PCBusy);
+                break;
+            case EnvironmentMood.Downloading:
+                PlayEmote(AnimClip.DownloadWatching);
+                break;
+            case EnvironmentMood.CalmedDown:
+                PlayEmote(AnimClip.PCIdle);
+                break;
+        }
+    }
+
+    /// <summary>PC is going to sleep / waking up: Hoodie's world sleeps with it.</summary>
+    public void WorldSleep(bool asleep)
+    {
+        _worldAsleep = asleep;
+        if (asleep)
+        {
+            if (Machine.IsPhysical || Machine.State is BehaviorState.Hidden or BehaviorState.Sleeping) return;
+            if (Machine.State != BehaviorState.Sitting) BeginSit(sleepAfter: true);
+            BeginSleep();
+        }
+        else if (Machine.State == BehaviorState.Sleeping)
+        {
+            WakeUp(null);
+        }
+    }
+
+    // ------------------------------------------------------------------ cursor
+
+    private Vec2 _cursor;
+    private string? _foregroundMonitorId;
+
+    private void UpdateCursor(in PetInput input, double dt)
+    {
+        _cursor = input.Cursor;
+        _foregroundMonitorId = input.ForegroundMonitorId;
+        var t = Transform;
+        var head = t.LocalToWorld(new Vec2(243, 250));
+        var box = t.Bounds(RigTransform.BodyLocal);
+        var ev = Cursor.Update(_time, dt, input.Cursor, input.LeftButtonDown, box, head, DipScale);
+
+        var mode = EffectiveMode;
+        var reactive = Settings.CursorReactions && Machine.State is BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Sitting
+            or BehaviorState.Emote or BehaviorState.ShowingBackpack or BehaviorState.Alert or BehaviorState.Landing or BehaviorState.Recovering;
+
+        // Look at the user's hand.
+        double targetWeight = 0, lx = 0, ly = 0;
+        if (_time < _lookScriptUntil)
+        {
+            var k = (_lookScriptUntil - _time) / 3.2;
+            lx = Math.Sin(k * Math.PI * 2) * 0.9;
+            ly = 0.1;
+            targetWeight = 0.9;
+        }
+        else if (reactive && Machine.State != BehaviorState.Sleeping)
+        {
+            var d = Vec2.Distance(input.Cursor, head) / DipScale;
+            targetWeight = CursorInteractionService.LookWeight(d);
+            if (mode is PresenceMode.Focus or PresenceMode.Quiet) targetWeight *= 0.5;
+            if (Machine.State is BehaviorState.Landing or BehaviorState.Recovering) targetWeight = Math.Max(targetWeight, 0.6);
+            var dir = (input.Cursor - head).Normalized();
+            lx = -Facing * dir.X;
+            ly = dir.Y;
+        }
+        _lookWeight = MathUtil.Approach(_lookWeight, targetWeight, 6, dt);
+        Animation.SetLook(lx, ly, _lookWeight);
+
+        if (!reactive) return;
+
+        // Occasionally turn to face the user when they are near and behind.
+        if (Machine.State == BehaviorState.Idle && mode != PresenceMode.Focus && targetWeight > 0.35 &&
+            Math.Sign(input.Cursor.X - Feet.X) == -Facing && Math.Abs(input.Cursor.X - Feet.X) > Dip(30))
+        {
+            _cursorOtherSide += dt;
+            if (_cursorOtherSide > 1.2)
+            {
+                _cursorOtherSide = 0;
+                TurnThen(() => Go(BehaviorState.Idle, "faced the user", force: true));
+                return;
+            }
+        }
+        else
+        {
+            _cursorOtherSide = 0;
+        }
+
+        switch (ev)
+        {
+            case CursorEvent.Surprised when mode is not (PresenceMode.Focus or PresenceMode.Quiet) && Machine.State is BehaviorState.Idle:
+                PlayEmote(AnimClip.Surprised);
+                break;
+            case CursorEvent.Curious when mode is PresenceMode.Normal or PresenceMode.Company or PresenceMode.Play && Machine.State is BehaviorState.Idle:
+                PlayEmote(AnimClip.Curious);
+                break;
+            case CursorEvent.Obstructing:
+                Cursor.MakeShy(_time, 60);
+                StepAside();
+                break;
+        }
+
+        // While shy (the user signalled Hoodie was in the way), keep a respectful distance.
+        if (Cursor.IsShy(_time) && _time > _nextStepAside && Machine.State is BehaviorState.Idle or BehaviorState.Sitting)
+        {
+            var d = Vec2.Distance(input.Cursor, head) / DipScale;
+            if (d < 130) StepAside();
+        }
+    }
+
+    /// <summary>Hoodie realises it is in the way and moves aside (communicated through movement, not dialogs).</summary>
+    private void StepAside()
+    {
+        if (Machine.State is not (BehaviorState.Idle or BehaviorState.Sitting or BehaviorState.Walking or BehaviorState.Emote)) return;
+        _nextStepAside = _time + 3;
+        var m = Metrics;
+        var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+        var away = Math.Sign(Feet.X - _cursor.X);
+        if (away == 0) away = -Facing;
+        var dist = m.HalfWidthPx * 3.2 + Dip(60);
+        foreach (var candidate in new[] { Feet.X + away * dist, Feet.X - away * dist * 1.6, Feet.X + away * dist * 2 })
+        {
+            if (candidate < mon.WorkArea.Left + m.HalfWidthPx || candidate > mon.WorkArea.Right - m.HalfWidthPx) continue;
+            if (!Territory.CanStop(new Vec2(candidate, Feet.Y), m.HeightPx)) continue;
+            Log?.Invoke("stepping aside");
+            StartWalk(candidate, run: false, onArrive: null);
+            return;
+        }
+    }
+
+    // ------------------------------------------------------------------ user interaction
+
+    /// <summary>Left click on Hoodie (the host opens the Quick Panel).</summary>
+    public void Clicked()
+    {
+        Drives.OnUserAttention();
+        if (Machine.State == BehaviorState.Sleeping)
+        {
+            WakeUp(null);
+            return;
+        }
+        if (Machine.State is BehaviorState.Idle or BehaviorState.Walking && !Animation.IsOnCooldown(AnimClip.Wave))
+        {
+            _walkTargetX = null;
+            PlayEmote(AnimClip.Wave);
+        }
+    }
+
+    public void SetMode(PresenceMode mode)
+    {
+        if (mode == Mode) return;
+        var old = Mode;
+        Mode = mode;
+        if (mode != PresenceMode.Alone) _modeBeforeAlone = mode;
+        Settings.CurrentPresenceMode = mode;
+        Log?.Invoke($"mode {old} -> {mode}");
+        ModeChanged?.Invoke(mode);
+        EffectiveMode = mode;
+
+        if (old == PresenceMode.Alone && mode != PresenceMode.Alone) ComeBack();
+        switch (mode)
+        {
+            case PresenceMode.Focus:
+                if (CanReact) GoToRestSpot(then: () => BeginSit(sleepAfter: false));
+                break;
+            case PresenceMode.Quiet:
+                if (Machine.State is BehaviorState.Walking) StopWalk("quiet");
+                if (CanReact && Machine.State is BehaviorState.Idle) BeginSit(sleepAfter: false);
+                break;
+            case PresenceMode.Play:
+                if (CanReact)
+                    EnsureStanding(() => { if (!Settings.ReducedMotion) JumpTo(Feet, 60); else PlayEmote(AnimClip.Success); });
+                ScheduleDecision(1.5);
+                break;
+            case PresenceMode.Company:
+                if (CanReact) EnsureStanding(() => PlayEmote(AnimClip.Wave));
+                ScheduleDecision(1.0);
+                break;
+            case PresenceMode.Normal:
+                ScheduleDecision(2);
+                break;
+        }
+    }
+
+    public void Execute(PetCommand command)
+    {
+        var m = Metrics;
+        switch (command)
+        {
+            case PetCommand.ComeHere:
+            {
+                if (Mode == PresenceMode.Alone) SetMode(_modeBeforeAlone == PresenceMode.Alone ? PresenceMode.Normal : _modeBeforeAlone);
+                if (!CanReact) return;
+                var cm = World.MonitorAt(_cursor) ?? World.NearestMonitor(_cursor);
+                var side = Feet.X < _cursor.X ? -1 : 1;
+                var target = new Vec2(_cursor.X + side * Dip(70), cm.WorkArea.Bottom);
+                var far = Vec2.Distance(target, Feet) > Dip(600);
+                EnsureStanding(() => TravelTo(target, run: far, onArrive: () =>
+                {
+                    var dir = Math.Sign(_cursor.X - Feet.X);
+                    if (dir != 0 && dir != Facing) TurnThen(() => PlayEmote(AnimClip.Wave));
+                    else PlayEmote(AnimClip.Wave);
+                }));
+                break;
+            }
+            case PetCommand.StayHere:
+                Territory.SetAnchor(Feet, Dip(220));
+                if (Machine.State == BehaviorState.Walking) StopWalk("stay here");
+                PlayEmote(AnimClip.Success);
+                break;
+            case PetCommand.YoureFree:
+                Territory.ClearAnchor();
+                PlayEmote(AnimClip.Wave);
+                ScheduleDecision(1.5);
+                break;
+            case PetCommand.GoHome:
+            {
+                if (!CanReact) return;
+                var home = Territory.HomeFeet() ?? DefaultHome();
+                EnsureStanding(() =>
+                {
+                    if (!TravelTo(home, run: false, onArrive: () => BeginSit(false)))
+                        TravelTo(home, run: false, onArrive: () => BeginSit(false), ignoreTerritory: true);
+                });
+                break;
+            }
+            case PetCommand.BeQuiet:
+                SetMode(PresenceMode.Quiet);
+                break;
+            case PetCommand.LetsPlay:
+                SetMode(PresenceMode.Play);
+                break;
+            case PetCommand.LeaveMeAlone:
+                SetMode(PresenceMode.Alone);
+                break;
+            case PetCommand.ComeBack:
+                SetMode(_modeBeforeAlone == PresenceMode.Alone ? PresenceMode.Normal : _modeBeforeAlone);
+                if (HiddenReasons.HasFlag(HiddenReason.Alone)) ComeBack();
+                break;
+            case PetCommand.ShowBackpack:
+                // The host opens the panel and calls BackpackOpened(true).
+                break;
+            case PetCommand.Normal:
+                SetMode(PresenceMode.Normal);
+                break;
+            case PetCommand.Focus:
+                SetMode(PresenceMode.Focus);
+                break;
+            case PetCommand.Company:
+                SetMode(PresenceMode.Company);
+                break;
+        }
+    }
+
+    public void SetHomeHere()
+    {
+        var mon = World.MonitorAt(Feet) ?? World.NearestMonitor(Feet);
+        Territory.SetHome(mon, Feet);
+        PlayEmote(AnimClip.Success);
+    }
+}
