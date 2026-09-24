@@ -353,6 +353,52 @@ public sealed class BehaviorSystemTests : IDisposable
         Assert.InRange(sim.Pet.Feet.X, 0, 60);
     }
 
+    [Fact]
+    public void LongLife_WithPlatformsGrabsAndAbsence_NeverBreaks()
+    {
+        var world = TestWorlds.SideBySide();
+        var sim = new Sim(world, seed: 21);
+        sim.Pet.Mind.AfkScale = 1 / 20.0;
+        var rnd = new Random(5);
+        var states = new HashSet<BehaviorState>();
+        for (var minute = 0; minute < 25; minute++)
+        {
+            // Some windows come and go, sometimes they move.
+            var surfaces = new List<Surface>();
+            for (var i = 0; i < rnd.Next(0, 4); i++)
+            {
+                var l = rnd.Next(0, 4000);
+                surfaces.Add(new Surface($"w{minute % 3}{i}", SurfaceKind.Window, l, l + rnd.Next(150, 900), rnd.Next(300, 1000)));
+            }
+            sim.Pet.SetSurfaces(surfaces);
+            sim.Cursor = new Vec2(rnd.Next(0, 4400), rnd.Next(0, 1400));
+            if (minute % 4 == 3)
+            {
+                var at = sim.Pet.Transform.LocalToWorld(new Vec2(rnd.Next(150, 400), rnd.Next(120, 800)));
+                if (sim.Pet.BeginGrab(at))
+                {
+                    for (var k = 0; k < 40; k++) { sim.Cursor = at + new Vec2(k * 9, -k * 5); sim.Run(1 / 60.0); }
+                    sim.Pet.EndGrab(sim.Cursor);
+                }
+            }
+            sim.Idle = minute % 10 < 6 ? sim.Idle : 0;
+            sim.Run(60, r =>
+            {
+                states.Add(r.State);
+                Assert.True(world.Extent.Inflate(400, 400).Contains(sim.Pet.Feet), $"feet {sim.Pet.Feet} left the world in {r.State}");
+                if (r.State is BehaviorState.Idle or BehaviorState.Sitting or BehaviorState.Sleeping && sim.Pet.StandingOn is null)
+                {
+                    var mon = world.MonitorAt(sim.Pet.Feet);
+                    Assert.NotNull(mon);
+                    Assert.InRange(sim.Pet.Feet.Y, mon!.WorkArea.Bottom - 0.6, mon.WorkArea.Bottom + 0.6);
+                }
+            }, idleRate: minute % 10 < 6 ? 1 : 0);
+        }
+        Assert.Contains(BehaviorState.Sleeping, states);
+        Assert.Contains(BehaviorState.Climbing, states);
+        Assert.True(states.Count >= 8, string.Join(",", states));
+    }
+
     // ------------------------------------------------------------------ backpack & notes
 
     [Fact]
