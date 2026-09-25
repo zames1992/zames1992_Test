@@ -1,0 +1,97 @@
+Hoodie Companion — automated QA report
+Date: 2026-09-25 09:48:13
+OS: Microsoft Windows NT 10.0.19043.0  .NET: 8.0.31  64-bit: True
+Monitors: \\.\DISPLAY1:[0,0 1920x1080]:[0,0 1920x1080]:1.00
+Frame rate while active: avg 44.6 fps, max 63.1
+Calm CPU (Quiet, sitting): 4.43% of all cores
+Frame logic (simulation + scene update, excl. WPF render): 0.129 ms/frame
+Peak working set: 673 MB
+States seen: Activity, Airborne, Alert, Appearing, Climbing, Emote, Grabbed, Hidden, Idle, Jumping, Landing, Leaving, ReceivingItem, Returning, Sitting, Sleeping, Turning, Walking
+
+PASS  character appears after launch
+PASS  walks autonomously / on request
+PASS  grab by the hood starts
+PASS  held state while dragging
+PASS  release gives throw velocity (2513 px/s)
+PASS  lands after the throw
+PASS  still inside the world after the throw
+PASS  releasing the mouse button always drops Hoodie (no sticking)
+PASS  dropped file stored in Backpack
+PASS  Backpack persisted to inventory.json
+PASS  Backpack page: Hoodie opens its backpack
+PASS  timer: typed minutes are kept while the countdown refreshes
+PASS  PC Status page: Hoodie sits down with its laptop
+PASS  removing from Backpack keeps the original file
+PASS  reminder alert: Hoodie holds up the note + card
+PASS  Leave me alone: Hoodie exits and stays hidden
+PASS  Come back: Hoodie returns
+PASS  Quiet mode: sits calmly
+PASS  calm CPU usage is low (4.4% of all cores)
+PASS  territory toolbar stays above the overlays (owned window)
+PASS  desktop right-click menu registered
+PASS  held by the hand: hangs from the hand (HangHandL)
+PASS  held by a foot: hangs upside down (tilt 164)
+PASS  dropped below the taskbar edge: grabs the edge (HangEdge)
+PASS  climbs back up onto the floor (no teleport)
+PASS  notes: kept note pinned to the desktop
+PASS  sleeps lying down
+PASS  a quick click on a walking Hoodie opens the panel
+PASS  finds a window top to climb onto
+PASS  stands on the window top (qa-window)
+PASS  falls back to the floor when the window closes
+PASS  starts climbing the side of the screen
+PASS  climbs up the screen side
+PASS  slides back down to the floor
+PASS  notices a new app (by name only) and remembers it
+PASS  hot PC: Hoodie gets its fan out
+PASS  the fan is in Hoodie's hand (FanSelf)
+PASS  plays with its ball
+PASS  the ball is out
+PASS  memory saved locally to memory.json
+PASS  own footprint is measured (cpu 9.6% ram 668 MB heap 22 MB handles 512 gdi 0 user 0)
+PASS  decisions have reasons (Stretch: stiff from standing)
+PASS  no errors logged (0)
+
+RESULT: PASS
+
+Recent transitions:
+  Sitting -> Idle (placed)
+  Idle -> Grabbed (grabbed (Hood))
+  Grabbed -> Airborne (released)
+  Airborne -> Climbing (caught the ledge)
+  Climbing -> Landing (climbed up)
+  Landing -> Idle (recovered)
+  Idle -> Activity (activity notes)
+  Activity -> Idle (placed)
+  Idle -> Sitting (sit)
+  Sitting -> Sleeping (fall asleep)
+  Sleeping -> Idle (placed)
+  Idle -> Turning (turn)
+  Turning -> Walking (walk after turn)
+  Walking -> Idle (arrived)
+  Idle -> Turning (turn)
+  Turning -> Jumping (jump)
+  Jumping -> Airborne (takeoff)
+  Airborne -> Landing (landed 406 dip/s)
+  Landing -> Idle (recovered)
+  Idle -> Emote (Listen)
+  Emote -> Idle (emote done)
+  Idle -> Activity (activity read)
+  Activity -> Airborne (platform gone)
+  Airborne -> Landing (landed 777 dip/s)
+  Landing -> Idle (recovered)
+  Idle -> Emote (Scared)
+  Emote -> Idle (emote done)
+  Idle -> Idle (placed)
+  Idle -> Walking (walk)
+  Walking -> Idle (arrived)
+  Idle -> Climbing (climb the screen side)
+  Climbing -> Landing (slid down the side)
+  Landing -> Idle (recovered)
+  Idle -> Emote (HeadTilt)
+  Emote -> Idle (emote done)
+  Idle -> Emote (Stretch)
+  Emote -> Idle (emote done)
+  Idle -> Idle (placed)
+  Idle -> Activity (activity fan)
+  Activity -> Activity (activity ball)
