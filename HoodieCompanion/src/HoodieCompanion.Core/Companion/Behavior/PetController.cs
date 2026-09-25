@@ -158,6 +158,8 @@ public sealed partial class PetController
         _anchorLocal = BodyMetrics.RootLocal;
         _anchorWorld = Feet;
         _tilt = 0;
+        _tiltVel = 0;
+        _settleOnCenter = false;
         _walkTargetX = null;
         _travel = null;
         _onSurface = null;
@@ -223,15 +225,28 @@ public sealed partial class PetController
             case BehaviorState.Appearing: UpdateAppearing(); break;
         }
 
-        if ((!Machine.IsPhysical || Machine.State == BehaviorState.Climbing) && Machine.State != BehaviorState.Grabbed)
+        // Standing on something (including while landing / recovering: the skid after a landing must be
+        // drawn as it happens, not applied all at once afterwards).
+        if ((!Machine.IsPhysical || Machine.State is BehaviorState.Climbing or BehaviorState.Landing or BehaviorState.Recovering)
+            && Machine.State != BehaviorState.Grabbed)
         {
-            // Grounded: the rig stands on its feet; any leftover tilt settles quickly.
-            _anchorLocal = BodyMetrics.RootLocal;
-            _anchorWorld = Feet;
-            var acc = -160 * _tilt - 22 * _tiltVel;
+            // Grounded: the rig stands on its feet; any leftover tilt settles quickly. Right after a landing
+            // it settles around the body's centre (see Land) so the body never jumps sideways.
+            var acc = -140 * _tilt - 20 * _tiltVel;
             _tiltVel += acc * dt;
             _tilt += _tiltVel * dt;
-            if (Math.Abs(_tilt) < 0.05 && Math.Abs(_tiltVel) < 0.5) { _tilt = 0; _tiltVel = 0; }
+            if (Math.Abs(_tilt) < 0.05 && Math.Abs(_tiltVel) < 0.5) { _tilt = 0; _tiltVel = 0; _settleOnCenter = false; }
+            if (_settleOnCenter)
+            {
+                _anchorLocal = BodyMetrics.CenterLocal;
+                _anchorWorld = new Vec2(Feet.X, Feet.Y - Metrics.FeetOffsetPx);
+            }
+            else
+            {
+                _settleOnCenter = false;
+                _anchorLocal = BodyMetrics.RootLocal;
+                _anchorWorld = Feet;
+            }
         }
 
         var m = Metrics;

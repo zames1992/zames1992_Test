@@ -211,6 +211,47 @@ public sealed class BehaviorSystemTests : IDisposable
         Assert.True(maxJump < 25, $"feet jumped sideways by {maxJump:0.0} px on landing");
     }
 
+    private readonly List<string> _trace = new();
+
+    [Theory]
+    [InlineData(1, 30, -26)]
+    [InlineData(2, -34, -20)]
+    [InlineData(3, 40, -8)]
+    [InlineData(4, 22, -30)]
+    public void AngledSpinningThrow_LandsWithoutAnySidewaysJump(int seed, double dx, double dy)
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: seed);
+        sim.Pet.Place(new Vec2(900, 1040), appear: false);
+        sim.Run(0.4);
+        // Grab by a hand (swings a lot), whip it round, throw at an angle.
+        var hand = sim.Pet.Transform.LocalToWorld(PosedRig.HandRight(sim.Pet.Animation.LastPose));
+        sim.Cursor = hand;
+        Assert.True(sim.Pet.BeginGrab(hand));
+        for (var i = 0; i < 25; i++) { sim.Cursor += new Vec2(dx * Math.Sin(i * 0.5), dy); sim.Run(1 / 60.0); }
+        for (var i = 0; i < 8; i++) { sim.Cursor += new Vec2(dx, dy); sim.Run(1 / 60.0); }
+        sim.Pet.EndGrab(sim.Cursor);
+
+        Vec2? prev = null;
+        var landed = false;
+        var worstAfterTouchdown = 0.0;
+        var prevState = sim.Pet.State;
+        sim.Run(5, r =>
+        {
+            // Where the body's centre is drawn this frame.
+            var c = r.Transform.LocalToWorld(BodyMetrics.CenterLocal);
+            if (prev is Vec2 p && (landed || r.State != BehaviorState.Airborne))
+            {
+                if (prevState == BehaviorState.Airborne && r.State != BehaviorState.Airborne) landed = true;
+                if (landed) { worstAfterTouchdown = Math.Max(worstAfterTouchdown, Math.Abs(c.X - p.X)); if (Math.Abs(c.X - p.X) > 2) _trace.Add($"{r.State}:{c.X - p.X:0.0} tilt {r.Transform.Tilt:0.0} anchorL {r.Transform.AnchorLocal} anchorW {r.Transform.AnchorWorld} facing {r.Transform.Facing} clip {r.Clip}"); }
+            }
+            prev = c;
+            prevState = r.State;
+        });
+        Assert.True(landed, "never landed");
+        // Only a short skid is allowed: at most a few pixels per frame, never a jump.
+        Assert.True(worstAfterTouchdown < 7, $"body moved {worstAfterTouchdown:0.0} px in one frame after touchdown: {string.Join(" | ", _trace)}");
+    }
+
     [Fact]
     public void DroppedBelowTheTaskbarEdge_GrabsTheEdge_AndClimbsUp()
     {

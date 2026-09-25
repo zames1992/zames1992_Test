@@ -209,9 +209,14 @@ public sealed class AppHost : IDisposable
             // Safety net: if the real button is up, no press or grab may survive (lost button-up messages,
             // capture stolen by another window, etc.). This is what keeps Hoodie from sticking to the cursor.
             var buttonDown = ButtonOverride ?? MouseService.LeftButtonDown();
+            _buttonUpFor = buttonDown ? 0 : _buttonUpFor + dt;
             if (!buttonDown)
             {
-                if (_petWindow.IsPressed) _petWindow.CancelPress(notifyRelease: true);
+                // A drag ends as soon as the button is up. A plain press (a click in progress) is left alone:
+                // its WM_LBUTTONUP is normally just a few milliseconds behind, and cancelling it here used to
+                // swallow clicks whenever a frame ran in between (i.e. almost always while Hoodie was moving).
+                // Only a press whose button-up really got lost is cancelled.
+                if (_petWindow.IsDragging || (_petWindow.IsPressed && _petWindow.PressAge > 0.4 && _buttonUpFor > 0.2)) _petWindow.CancelPress(notifyRelease: true);
                 if (Pet.State == BehaviorState.Grabbed) Pet.EndGrab(CursorOverride ?? MouseService.Cursor());
             }
             var input = new PetInput
@@ -249,6 +254,7 @@ public sealed class AppHost : IDisposable
     public double FrameLogicMs { get; private set; }
 
     private int _frameCount;
+    private double _buttonUpFor;
 
     private RectD FallbackBounds()
     {
@@ -285,6 +291,7 @@ public sealed class AppHost : IDisposable
             if (_housekeepingTicks % 2 == 1 && Settings.AlwaysOnTop && !EmergencyHidden) WindowInterop.AssertTopmost(_petWindow.Hwnd);
             if (_housekeepingTicks % 30 == 0) RememberPosition();
             if (_housekeepingTicks == 20) _ = Apps.LoadAsync();
+            if (_housekeepingTicks == 6) PrewarmSettings();
         }
         catch (Exception ex)
         {
@@ -565,9 +572,32 @@ public sealed class AppHost : IDisposable
             _settingsWindow.Activate();
             return;
         }
-        _settingsWindow = new SettingsWindow(this);
+        // The window is built once (ahead of time, see PrewarmSettings) and then only shown/hidden,
+        // so opening it is instant instead of building and compiling a big window on the spot.
+        _settingsWindow ??= new SettingsWindow(this);
+        _settingsWindow.Build();
         _settingsWindow.Show();
         _settingsWindow.Activate();
+    }
+
+    /// <summary>Builds the settings window in the background a few seconds after start (not shown).</summary>
+    private void PrewarmSettings()
+    {
+        if (_settingsWindow is not null) return;
+        _app.Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                _settingsWindow ??= new SettingsWindow(this);
+                // Instantiate its templates and layout once while nobody is waiting for it.
+                _settingsWindow.Measure(new Size(_settingsWindow.Width, _settingsWindow.Height));
+                _settingsWindow.Arrange(new Rect(0, 0, _settingsWindow.Width, _settingsWindow.Height));
+            }
+            catch (Exception ex)
+            {
+                Log.Error("settings prewarm", ex);
+            }
+        }, DispatcherPriority.ApplicationIdle);
     }
 
     public void ShowTerritoryEditor()
@@ -649,8 +679,11 @@ public sealed class AppHost : IDisposable
         SaveTerritory();
     }
 
+    public bool IsExiting { get; private set; }
+
     public void Exit()
     {
+        IsExiting = true;
         SaveAll();
         Dispose();
         _app.Shutdown();

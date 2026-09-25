@@ -61,6 +61,18 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   made it vanish and respawn.
 * Territory editor: after choosing a tool the others were covered until Esc; the area names were unclear.
 
+## Fixed after the third user test (v1.2.1)
+
+* After an angled throw Hoodie landed and then "teleported" a bit further: the short skid after touchdown was not drawn
+  while the landing animation played and appeared all at once afterwards. The skid is now drawn frame by frame, is
+  shorter, and leftover tilt settles around the body's centre (no sideways jump). Covered by a frame-by-frame test.
+* Clicks on Hoodie were lost while it walked or was busy (reading, laptop...): the anti-sticking safety net cancelled a
+  click whose button-up message arrived a few milliseconds after a frame had already seen the button up. Covered by a QA check.
+* Panel tabs sometimes needed a second click: the home page rebuilt its buttons every second; now only their small
+  values refresh, and no live part is rebuilt while a mouse button is held over it.
+* The settings window took a moment to open: it is now prepared in the background after start and reused; the app is
+  published with precompiled (ReadyToRun) code so windows and menus open without JIT pauses.
+
 ## Visual
 
 * Arms are single rigid sleeves (no elbows): big arm poses (stretch, wave, fall) look slightly "noodly".

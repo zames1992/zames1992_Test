@@ -30,7 +30,14 @@ public sealed class SettingsWindow : Window
         FontFamily = Ui.Font;
         Content = Ui.Scroll(_content);
         SourceInitialized += (_, _) => WindowInterop.RoundCorners(this);
-        Closed += (_, _) => _host.SaveAll();
+        // Closing only hides the window: it is reused next time (opens instantly).
+        Closing += (_, e) =>
+        {
+            _host.SaveAll();
+            if (_host.IsExiting) return;
+            e.Cancel = true;
+            Hide();
+        };
         Build();
     }
 

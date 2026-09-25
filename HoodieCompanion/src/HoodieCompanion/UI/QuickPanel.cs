@@ -228,6 +228,7 @@ public sealed class QuickPanel : Window
     private void Rebuild()
     {
         _live.Clear();
+        _liveTexts.Clear();
         _body.Content = _page switch
         {
             PanelPage.Backpack => BackpackPage(),
@@ -251,7 +252,29 @@ public sealed class QuickPanel : Window
     private void RefreshLive()
     {
         if (!IsVisible) return;
-        foreach (var (host, build) in _live) host.Content = build();
+        // Never rebuild a part while the user is pressing a button in it: the click would be lost
+        // (the button under the finger would be replaced between mouse-down and mouse-up).
+        var pressing = Mouse.LeftButton == MouseButtonState.Pressed || Mouse.RightButton == MouseButtonState.Pressed;
+        foreach (var (host, build) in _live)
+        {
+            if (pressing && host.IsMouseOver) continue;
+            host.Content = build();
+        }
+        foreach (var (tb, text) in _liveTexts)
+        {
+            var t = text();
+            if (tb.Text != t) tb.Text = t;
+        }
+    }
+
+    private readonly List<(TextBlock Block, Func<string> Text)> _liveTexts = new();
+
+    /// <summary>A text that refreshes every second without rebuilding the controls around it.</summary>
+    private TextBlock LiveText(TextBlock tb, Func<string> text)
+    {
+        tb.Text = text();
+        _liveTexts.Add((tb, text));
+        return tb;
     }
 
     private UIElement Frame(string title, UIElement content, bool back = true, UIElement? footer = null, Action? onBack = null)
@@ -325,19 +348,15 @@ public sealed class QuickPanel : Window
                            (_host.Territory.Anchor is null ? "" : " · " + T("staying here")), 12, dim: true);
         });
 
-        var tiles = Live(() =>
-        {
-            var timer = _host.Timers.Active.FirstOrDefault();
-            var status = _host.LatestStatus;
-            var count = _host.Inventory.Items.Count;
-            return Ui.Grid(3,
-                Tile(Ui.Icons.Backpack, T("Backpack"), count == 0 ? T("empty") : F("{0} items", count), () => Show(PanelPage.Backpack)),
-                Tile(Ui.Icons.Note, T("Notes"), _host.Notes.OpenCount == 0 ? "—" : F("{0} open", _host.Notes.OpenCount), () => Show(PanelPage.Notes)),
-                Tile(Ui.Icons.Bell, T("Reminder"), _host.Reminders.Pending().FirstOrDefault() is { } r ? r.DueAt.ToString("HH:mm") : "—", () => Show(PanelPage.Reminder)),
-                Tile(Ui.Icons.Timer, T("Timer"), timer is null ? "—" : TimerService.FormatRemaining(timer.Remaining(DateTime.Now)), () => Show(PanelPage.Timer)),
-                Tile(Ui.Icons.Pc, T("PC Status"), status is null ? "…" : $"CPU {status.CpuUsage:0}%", () => Show(PanelPage.PcStatus)),
-                Tile(Ui.Icons.Gear, T("Settings"), "", () => { Close(false); _host.ShowSettings(); }));
-        });
+        // Built once; only the small values under the titles refresh (rebuilding the buttons every second
+        // made clicks get lost when they landed on a rebuild).
+        var tiles = Ui.Grid(3,
+            Tile(Ui.Icons.Backpack, T("Backpack"), () => _host.Inventory.Items.Count == 0 ? T("empty") : F("{0} items", _host.Inventory.Items.Count), () => Show(PanelPage.Backpack)),
+            Tile(Ui.Icons.Note, T("Notes"), () => _host.Notes.OpenCount == 0 ? "—" : F("{0} open", _host.Notes.OpenCount), () => Show(PanelPage.Notes)),
+            Tile(Ui.Icons.Bell, T("Reminder"), () => _host.Reminders.Pending().FirstOrDefault() is { } r ? r.DueAt.ToString("HH:mm") : "—", () => Show(PanelPage.Reminder)),
+            Tile(Ui.Icons.Timer, T("Timer"), () => _host.Timers.Active.FirstOrDefault() is { } timer ? TimerService.FormatRemaining(timer.Remaining(DateTime.Now)) : "—", () => Show(PanelPage.Timer)),
+            Tile(Ui.Icons.Pc, T("PC Status"), () => _host.LatestStatus is { } status ? $"CPU {status.CpuUsage:0}%" : "…", () => Show(PanelPage.PcStatus)),
+            Tile(Ui.Icons.Gear, T("Settings"), () => "", () => { Close(false); _host.ShowSettings(); }));
 
         var chips = new WrapPanel();
         foreach (var (mode, tip) in new[]
@@ -358,18 +377,25 @@ public sealed class QuickPanel : Window
             }, T(tip)));
         }
 
-        var cmds = Live(() =>
-        {
-            var anchored = _host.Territory.Anchor is not null;
-            return Ui.Grid(2,
-                Cmd(anchored ? T("You're free") : T("Stay here"), () => _host.Command(anchored ? PetCommand.YoureFree : PetCommand.StayHere)),
-                Cmd(T("Go home"), () => _host.Command(PetCommand.GoHome)),
-                Cmd(T("Set this as Home"), () => _host.SetHomeHere()),
-                Cmd(T("Leave me alone"), () => { _host.Command(PetCommand.LeaveMeAlone); Close(true); }));
-        });
+        var stayLabel = LiveText(Ui.Text("", 13, wrap: TextWrapping.NoWrap), () => _host.Territory.Anchor is not null ? T("You're free") : T("Stay here"));
+        var stay = Ui.Button(stayLabel, () => _host.Command(_host.Territory.Anchor is not null ? PetCommand.YoureFree : PetCommand.StayHere));
+        stay.Margin = new Thickness(0, 0, 6, 6);
+        var cmds = Ui.Grid(2,
+            stay,
+            Cmd(T("Go home"), () => _host.Command(PetCommand.GoHome)),
+            Cmd(T("Set this as Home"), () => _host.SetHomeHere()),
+            Cmd(T("Leave me alone"), () => { _host.Command(PetCommand.LeaveMeAlone); Close(true); }));
 
         var content = Ui.Stack(Orientation.Vertical, 10, sub, tiles, Ui.Caption(T("Presence")), chips, Ui.Caption(T("Ask Hoodie")), cmds);
         return Frame("Hoodie", Ui.Scroll(content), back: false);
+    }
+
+    private Button Tile(string icon, string label, Func<string> value, Action click)
+    {
+        var b = Tile(icon, label, "", click);
+        var v = ((StackPanel)b.Content).Children.OfType<TextBlock>().Last();
+        LiveText(v, value);
+        return b;
     }
 
     private Button Tile(string icon, string label, string value, Action click)

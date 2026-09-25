@@ -1,18 +1,18 @@
 Hoodie Companion — automated QA report
-Date: 2026-09-24 22:41:00
+Date: 2026-09-25 09:08:43
 OS: Microsoft Windows NT 10.0.19043.0  .NET: 8.0.31  64-bit: True
 Monitors: \\.\DISPLAY1:[0,0 1920x1080]:[0,0 1920x1080]:1.00
-Frame rate while active: avg 42.6 fps, max 62.1
-Calm CPU (Quiet, sitting): 3.87% of all cores
-Frame logic (simulation + scene update, excl. WPF render): 0.514 ms/frame
-Peak working set: 674 MB
+Frame rate while active: avg 41.9 fps, max 62.5
+Calm CPU (Quiet, sitting): 4.48% of all cores
+Frame logic (simulation + scene update, excl. WPF render): 4.514 ms/frame
+Peak working set: 665 MB
 States seen: Activity, Airborne, Alert, Appearing, Climbing, Emote, Grabbed, Hidden, Idle, Jumping, Landing, Leaving, ReceivingItem, Returning, Sitting, Sleeping, Turning, Walking
 
 PASS  character appears after launch
 PASS  walks autonomously / on request
 PASS  grab by the hood starts
 PASS  held state while dragging
-PASS  release gives throw velocity (2605 px/s)
+PASS  release gives throw velocity (2174 px/s)
 PASS  lands after the throw
 PASS  still inside the world after the throw
 PASS  releasing the mouse button always drops Hoodie (no sticking)
@@ -26,7 +26,7 @@ PASS  reminder alert: Hoodie holds up the note + card
 PASS  Leave me alone: Hoodie exits and stays hidden
 PASS  Come back: Hoodie returns
 PASS  Quiet mode: sits calmly
-PASS  calm CPU usage is low (3.9% of all cores)
+PASS  calm CPU usage is low (4.5% of all cores)
 PASS  territory toolbar stays above the overlays (owned window)
 PASS  desktop right-click menu registered
 PASS  held by the hand: hangs from the hand (HangHandL)
@@ -35,6 +35,7 @@ PASS  dropped below the taskbar edge: grabs the edge (HangEdge)
 PASS  climbs back up onto the floor (no teleport)
 PASS  notes: kept note pinned to the desktop
 PASS  sleeps lying down
+PASS  a quick click on a walking Hoodie opens the panel
 PASS  finds a window top to climb onto
 PASS  stands on the window top (qa-window)
 PASS  falls back to the floor when the window closes
@@ -46,10 +47,13 @@ PASS  no errors logged (0)
 RESULT: PASS
 
 Recent transitions:
+  Idle -> Idle (placed)
+  Idle -> Grabbed (grabbed (Foot))
+  Grabbed -> Airborne (released)
+  Airborne -> Landing (landed 772 dip/s)
   Landing -> Idle (recovered)
-  Idle -> Turning (turn)
-  Turning -> Walking (walk after turn)
-  Walking -> Idle (placed)
+  Idle -> Emote (LookUp)
+  Emote -> Idle (placed)
   Idle -> Grabbed (grabbed (Hood))
   Grabbed -> Airborne (released)
   Airborne -> Climbing (caught the ledge)
@@ -60,29 +64,26 @@ Recent transitions:
   Idle -> Sitting (sit)
   Sitting -> Sleeping (fall asleep)
   Sleeping -> Idle (placed)
-  Idle -> Walking (walk)
-  Walking -> Turning (turn)
+  Idle -> Turning (turn)
   Turning -> Walking (walk after turn)
   Walking -> Idle (arrived)
   Idle -> Turning (turn)
   Turning -> Jumping (jump)
   Jumping -> Airborne (takeoff)
-  Airborne -> Landing (landed 406 dip/s)
+  Airborne -> Landing (landed 407 dip/s)
   Landing -> Idle (recovered)
-  Idle -> Emote (HeadTilt)
-  Emote -> Idle (emote done)
-  Idle -> Turning (turn)
-  Turning -> Idle (faced the user)
-  Idle -> Airborne (platform gone)
-  Airborne -> Landing (landed 809 dip/s)
+  Idle -> Emote (WatchWindow)
+  Emote -> Airborne (platform gone)
+  Airborne -> Landing (landed 785 dip/s)
   Landing -> Idle (recovered)
-  Idle -> Idle (placed)
-  Idle -> Turning (turn)
-  Turning -> Walking (walk after turn)
-  Walking -> Turning (turn)
-  Turning -> Walking (walk after turn)
+  Idle -> Activity (activity read)
+  Activity -> Idle (placed)
+  Idle -> Walking (walk)
   Walking -> Idle (arrived)
   Idle -> Climbing (climb the screen side)
   Climbing -> Landing (slid down the side)
   Landing -> Idle (recovered)
   Idle -> Emote (LookRight)
+  Emote -> Idle (emote done)
+  Idle -> Turning (turn)
+  Turning -> Walking (walk after turn)

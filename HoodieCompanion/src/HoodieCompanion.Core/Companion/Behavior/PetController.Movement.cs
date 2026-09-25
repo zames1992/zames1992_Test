@@ -557,8 +557,13 @@ public sealed partial class PetController
         _anchorLocal = BodyMetrics.CenterLocal;
         _anchorWorld = Physics.Center;
 
-        // The body rights itself while flying (hood up), with a little spin from the throw.
-        var acc = -40 * _tilt - 5 * _tiltVel;
+        // The body rights itself while flying (hood up), with a little spin from the throw, and gets its
+        // feet under itself just before touching down (so the landing needs no big correction).
+        var floor = World.FloorBelow(Physics.Center.X, Physics.Center.Y + m.FeetOffsetPx - 1);
+        var toFloor = floor is double fy && Physics.Velocity.Y > 1 ? (fy - Physics.Center.Y - m.FeetOffsetPx) / Physics.Velocity.Y : double.MaxValue;
+        var brace = MathUtil.Clamp01(1 - toFloor / 0.45);
+        _tilt = GrabController.NormalizeDeg(_tilt);
+        var acc = -(40 + 110 * brace) * _tilt - (5 + 14 * brace) * _tiltVel;
         _tiltVel += acc * dt;
         _tilt += _tiltVel * dt;
 
@@ -587,19 +592,21 @@ public sealed partial class PetController
 
     private void Land(LandingInfo l, BodyMetrics m)
     {
-        // Continuity: the feet stay exactly where they are drawn (with the current tilt), the body then
-        // rotates upright around them. Only the height snaps to the floor (a few pixels at most).
-        var visualFeet = Transform.LocalToWorld(BodyMetrics.RootLocal);
+        // Continuity: the body's centre stays exactly where it was drawn at touchdown. Any leftover tilt is
+        // settled by rotating around the centre (not around the feet), so nothing jumps sideways, and the
+        // tilt is never clamped (a clamp was a visible snap).
         var floorY = Physics.Center.Y + m.FeetOffsetPx;
         var mon = World.MonitorAt(new Vec2(Physics.Center.X, floorY)) ?? World.NearestMonitor(new Vec2(Physics.Center.X, floorY));
         var half = m.HalfWidthPx * 0.5;
-        var fx = Math.Clamp(visualFeet.X, mon.WorkArea.Left + half, mon.WorkArea.Right - half);
+        var fx = Math.Clamp(Physics.Center.X, mon.WorkArea.Left + half, mon.WorkArea.Right - half);
         Feet = new Vec2(fx, floorY);
-        _anchorLocal = BodyMetrics.RootLocal;
-        _anchorWorld = Feet;
-        _tilt = Math.Clamp(GrabController.NormalizeDeg(_tilt), -50, 50);
+        _tilt = GrabController.NormalizeDeg(_tilt);
+        _settleOnCenter = Math.Abs(_tilt) > 0.5;
+        _anchorLocal = _settleOnCenter ? BodyMetrics.CenterLocal : BodyMetrics.RootLocal;
+        _anchorWorld = _settleOnCenter ? new Vec2(Feet.X, Feet.Y - m.FeetOffsetPx) : Feet;
         _landingImpact = l.ImpactDipPerSec;
-        _slideVelocity = l.HorizontalDipPerSec * 0.45 * _monitorScale;
+        // A short skid in the direction of travel (it used to slide much further, which read as a jump).
+        _slideVelocity = l.HorizontalDipPerSec * 0.22 * _monitorScale;
         Go(BehaviorState.Landing, $"landed {l.ImpactDipPerSec:0} dip/s", force: true);
         var hard = _thrownByUser && l.ImpactDipPerSec >= HardLandingDip;
         Mind.OnLanded(hard);
@@ -608,11 +615,18 @@ public sealed partial class PetController
             Drives.OnHardLanding();
             Animation.Play(AnimClip.LandHard, force: true, restart: true);
         }
+        else if (Math.Abs(_slideVelocity) > Dip(110) && Math.Sign(_slideVelocity) == Facing && !Settings.ReducedMotion)
+        {
+            // Visibly skids to a stop (leaning back, dust) instead of gliding in a landing pose.
+            Animation.Play(AnimClip.Stop, force: true, restart: true);
+        }
         else
         {
             Animation.Play(_jumpToMonitor ? AnimClip.LandMonitor : AnimClip.LandSoft, force: true, restart: true);
         }
     }
+
+    private bool _settleOnCenter;
 
     private void UpdateLanding(double dt)
     {

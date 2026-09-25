@@ -128,7 +128,30 @@ public sealed class PetWindow : Window
     public event Action<IReadOnlyList<string>>? ItemsDropped;
 
     public bool IsDragging => _dragging;
+
+    /// <summary>QA: the mouse-down half of a click (as WM_LBUTTONDOWN would deliver it).</summary>
+    internal void QaPress()
+    {
+        _pressed = true;
+        _pressAge.Restart();
+        _dragging = false;
+        _pressPx = MouseService.Cursor();
+    }
+
+    /// <summary>QA: the mouse-up half of a click, delivered late (after frames already saw the button up).</summary>
+    internal bool QaRelease()
+    {
+        if (!_pressed) return false;
+        _pressed = false;
+        Clicked?.Invoke();
+        return true;
+    }
     public bool IsPressed => _pressed;
+
+    private readonly System.Diagnostics.Stopwatch _pressAge = new();
+
+    /// <summary>How long the current press has existed (seconds).</summary>
+    public double PressAge => _pressed ? _pressAge.Elapsed.TotalSeconds : 0;
 
     /// <summary>
     /// Ends any press/drag and releases mouse capture. Called by the host when it sees (by polling the real
@@ -157,6 +180,7 @@ public sealed class PetWindow : Window
     private void OnLeftDown(object sender, MouseButtonEventArgs e)
     {
         _pressed = true;
+        _pressAge.Restart();
         _dragging = false;
         _pressPx = MouseService.Cursor();
         CaptureMouse();

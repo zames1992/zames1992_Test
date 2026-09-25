@@ -348,6 +348,24 @@ public sealed class QaRunner
             SnapPet("28-sleeping");
             pet.WorldSleep(false);
         });
+        // Regression: clicks on a moving Hoodie were swallowed when a frame saw the button already up before
+        // the WM_LBUTTONUP message was handled.
+        At(97.3, "click-while-walking", () =>
+        {
+            pet.WorldSleep(false);
+            pet.TravelTo(new Vec2(prim.Left + prim.Width * 0.2, prim.Bottom), false, null);
+        });
+        At(97.6, "click-press", () =>
+        {
+            _host.ButtonOverride = false; // the real button is already up again...
+            _host.PetWindow.QaPress();     // ...but the mouse-down is only now being handled
+        });
+        At(97.75, "click-release", () =>
+        {
+            var delivered = _host.PetWindow.QaRelease();
+            Check(delivered && _host.Panel.IsOpen, "a quick click on a walking Hoodie opens the panel");
+            _host.Panel.Close(animated: false);
+        });
         At(98.0, "platform", () =>
         {
             pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
