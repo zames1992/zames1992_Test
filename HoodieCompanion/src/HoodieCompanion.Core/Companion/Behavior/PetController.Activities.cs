@@ -203,8 +203,6 @@ public sealed partial class PetController
                 Go(BehaviorState.Idle, "switch activity", force: true);
             }
         }
-        if (!CanReact) return;
-
         // Start after the previous activity has finished its exit.
         void Begin()
         {
@@ -225,7 +223,9 @@ public sealed partial class PetController
             }
         }
 
-        if (Machine.State == BehaviorState.Activity && _activity is not null) _pendingPanelStart = Begin;
+        // Busy right now (landing, climbing, catching a file...): the page's activity starts as soon as Hoodie can,
+        // instead of being dropped.
+        if ((Machine.State == BehaviorState.Activity && _activity is not null) || !CanReact) _pendingPanelStart = Begin;
         else Begin();
     }
 
@@ -234,10 +234,10 @@ public sealed partial class PetController
     /// <summary>Called every frame: starts a queued panel activity once the previous one has ended.</summary>
     private void PumpPendingActivity()
     {
-        if (_pendingPanelStart is null || Machine.State == BehaviorState.Activity) return;
+        if (_pendingPanelStart is null || Machine.State == BehaviorState.Activity || !CanReact) return;
         var p = _pendingPanelStart;
         _pendingPanelStart = null;
-        if (CanReact) p();
+        p();
     }
 
     /// <summary>Kept for compatibility: the Backpack page is open.</summary>
@@ -247,5 +247,17 @@ public sealed partial class PetController
     {
         _activity = null;
         _pendingPanelStart = null;
+        // A page is still open (e.g. Hoodie was grabbed while showing its backpack): pick the page's activity up
+        // again once it can.
+        if (_panelActivity != PanelActivity.None)
+        {
+            var page = _panelActivity;
+            _pendingPanelStart = () =>
+            {
+                if (_panelActivity != page) return;
+                _panelActivity = PanelActivity.None;
+                SetPanelActivity(page);
+            };
+        }
     }
 }

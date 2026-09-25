@@ -590,7 +590,8 @@ public sealed class QaRunner
         sb.AppendLine($"Monitors: {_host.World.Fingerprint}");
         sb.AppendLine($"Frame rate while active: avg {(validFps.Count > 0 ? validFps.Average() : 0):0.0} fps, max {(validFps.Count > 0 ? validFps.Max() : 0):0.0}");
         sb.AppendLine($"Calm CPU (Quiet, sitting): {_calmCpu:0.00}% of all cores");
-        sb.AppendLine($"Frame logic (simulation + scene update, excl. WPF render): {_host.FrameLogicMs:0.000} ms/frame");
+        var (median, p95) = _host.FrameLogicPercentiles();
+        sb.AppendLine($"Frame logic (simulation + scene update, excl. WPF render): median {median:0.000} ms, p95 {p95:0.000} ms, max {_host.FrameLogicMaxMs:0.0} ms, frames over 8 ms: {_host.SlowFrames} (recent average {_host.FrameLogicMs:0.000} ms)");
         sb.AppendLine($"Peak working set: {_peakMem / 1048576.0:0} MB");
         sb.AppendLine($"States seen: {string.Join(", ", _seenStates.OrderBy(s => s.ToString()))}");
         sb.AppendLine();

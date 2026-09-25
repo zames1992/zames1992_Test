@@ -52,7 +52,7 @@
   reasons and a real "do nothing"; considerate behaviour while the user types; expressive-reaction budget; seven stable
   personality traits; bounded local memory (apps by name, places, counts, moments) with habituation; world items (fan,
   mug, ball, blanket) with new clips; passive progression by hours and days together; hoodie colours; Memories page;
-  simplified Settings with Privacy and Performance/debug groups; performance watch. 79 tests (incl. a 12 h simulated
+  simplified Settings with Privacy and Performance/debug groups; performance watch. 80 tests (incl. a 12 h simulated
   soak); QA scenario 44/44 PASS under Wine.
 
 ## FAILED (and what replaced it)

@@ -286,6 +286,31 @@ public sealed class AppHost : IDisposable
         }
         var ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         FrameLogicMs = FrameLogicMs * 0.98 + ms * 0.02;
+        _frameSamples[_frameSampleCount++ % _frameSamples.Length] = ms;
+        if (ms > FrameLogicMaxMs) FrameLogicMaxMs = ms;
+        if (ms > 8)
+        {
+            SlowFrames++;
+            if (SlowFrames <= 20 || SlowFrames % 100 == 0) Log.Info($"slow frame: {ms:0.0} ms logic ({Pet.State}, {_last.Clip})");
+        }
+    }
+
+    private readonly double[] _frameSamples = new double[4096];
+    private int _frameSampleCount;
+
+    /// <summary>Worst single frame of simulation + scene update since start.</summary>
+    public double FrameLogicMaxMs { get; private set; }
+
+    /// <summary>Frames whose logic took more than 8 ms.</summary>
+    public int SlowFrames { get; private set; }
+
+    /// <summary>Median and 95th percentile of the recent frame logic times (ms).</summary>
+    public (double Median, double P95) FrameLogicPercentiles()
+    {
+        var n = Math.Min(_frameSampleCount, _frameSamples.Length);
+        if (n == 0) return (0, 0);
+        var a = _frameSamples.Take(n).OrderBy(x => x).ToArray();
+        return (a[n / 2], a[Math.Min(n - 1, (int)(n * 0.95))]);
     }
 
     /// <summary>Smoothed time spent in simulation + scene update per frame (excludes WPF rendering).</summary>

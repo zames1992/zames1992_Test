@@ -322,6 +322,33 @@ public sealed class LivingCharacterTests : IDisposable
         Assert.DoesNotContain("code", saved);
     }
 
+    [Fact]
+    public void BackpackPage_OpenedWhileHoodieIsBusy_StillOpensTheBackpack_AndAgainAfterAGrab()
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: 15);
+        sim.Pet.Place(new Vec2(900, 1040), appear: false);
+        sim.Run(0.5);
+        // Busy: in the air after a small throw.
+        Assert.True(sim.Pet.BeginGrab(sim.Pet.Transform.LocalToWorld(new Vec2(272, 140))));
+        sim.Run(0.2);
+        sim.Pet.EndGrab(sim.Pet.Transform.LocalToWorld(new Vec2(272, 140)));
+        sim.Pet.SetPanelActivity(PanelActivity.Backpack);
+        var open = 0.0;
+        sim.Run(4, r => open = Math.Max(open, r.Pose.PropBackpack));
+        Assert.True(open > 0.5, "backpack never opened after landing");
+
+        // Grabbed while showing the backpack: after landing it shows it again (the page is still open).
+        Assert.True(sim.Pet.BeginGrab(sim.Pet.Transform.LocalToWorld(new Vec2(272, 140))));
+        sim.Run(0.3);
+        sim.Pet.EndGrab(sim.Pet.Transform.LocalToWorld(new Vec2(272, 140)));
+        open = 0;
+        sim.Run(4, r => open = Math.Max(open, r.Pose.PropBackpack));
+        Assert.True(open > 0.5, "backpack not reopened after the grab");
+        sim.Pet.SetPanelActivity(PanelActivity.None);
+        sim.Run(3);
+        Assert.NotEqual("backpack", sim.Pet.ActivityName);
+    }
+
     // ------------------------------------------------------------------ long runs
 
     [Fact]

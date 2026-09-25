@@ -6,7 +6,7 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 
 * **Built and tested without a physical Windows PC.** The release executable was cross-built with the .NET 8 SDK
   and exercised end-to-end under Wine (automated QA scenario: 44/44 checks passed in v1.3, see
-  `docs/qa/qa-report-wine.txt`), plus 79 unit/simulation tests of the platform-independent core.
+  `docs/qa/qa-report-wine.txt`), plus 80 unit/simulation tests of the platform-independent core.
   The GitHub Actions workflow `.github/workflows/hoodie-companion.yml` runs the same clean build, the unit tests,
   the automated QA scenario and a single-instance check on a real `windows-latest` machine — first run on
   Windows 10.0.26100: **16/16 QA checks PASS, single instance OK**, simulation 0.085 ms/frame, calm CPU 5.5 % of all
