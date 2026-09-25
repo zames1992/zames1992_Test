@@ -21,6 +21,13 @@ public static class MouseService
         return (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
     }
 
+    /// <summary>Tick of the last user input (any device). Used to tell typing from pointer use without reading keys.</summary>
+    public static uint LastInputTick()
+    {
+        var info = new NativeMethods.LASTINPUTINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.LASTINPUTINFO>() };
+        return NativeMethods.GetLastInputInfo(ref info) ? info.dwTime : 0;
+    }
+
     public static double UserIdleSeconds()
     {
         var info = new NativeMethods.LASTINPUTINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.LASTINPUTINFO>() };

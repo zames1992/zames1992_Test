@@ -35,8 +35,19 @@ public sealed class SurfaceScanner : IDisposable
         _thread.Start();
     }
 
-    /// <summary>Set false to pause scanning (e.g. while hidden).</summary>
+    /// <summary>Set false to pause scanning (e.g. while hidden or asleep: nothing to climb).</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>Windows of these apps are never climbed (per-app rules, games...).</summary>
+    public Func<string?, bool>? ExcludeProcess { get; set; }
+
+    /// <summary>While true (a window is being dragged) the scan follows quickly.</summary>
+    public Func<bool>? FastMode { get; set; }
+
+    private readonly AutoResetEvent _poke = new(false);
+
+    /// <summary>Something changed (window event): rescan now instead of waiting.</summary>
+    public void Poke() => _poke.Set();
 
     private void Loop()
     {
@@ -67,13 +78,35 @@ public sealed class SurfaceScanner : IDisposable
             {
                 Log.Debug("surface scan failed: " + ex.Message);
             }
-            Thread.Sleep(350);
+            // Event-driven: window events poke the scanner; otherwise a slow fallback keeps things fresh.
+            _poke.WaitOne(FastMode?.Invoke() == true ? 120 : Enabled ? 1500 : 3000);
         }
     }
 
     // ------------------------------------------------------------------ windows
 
-    private readonly record struct Win(IntPtr Hwnd, double Left, double Top, double Right, double Bottom);
+    private readonly record struct Win(IntPtr Hwnd, double Left, double Top, double Right, double Bottom, string? Process);
+
+    private readonly Dictionary<int, string?> _names = new();
+
+    private string? NameOf(int pid)
+    {
+        if (_names.TryGetValue(pid, out var n)) return n;
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            n = p.ProcessName;
+        }
+        catch
+        {
+            n = null;
+        }
+        if (_names.Count > 256) _names.Clear();
+        _names[pid] = n;
+        return n;
+    }
+
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr h);
 
     private static readonly HashSet<string> SkipClasses = new(StringComparer.Ordinal)
     {
@@ -100,22 +133,27 @@ public sealed class SurfaceScanner : IDisposable
             RECT r;
             if (DwmGetWindowAttribute(h, DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf<RECT>()) != 0 && !GetWindowRect(h, out r)) return true;
             if (r.Right - r.Left < 120 || r.Bottom - r.Top < 60) return true;
-            list.Add(new Win(h, r.Left, r.Top, r.Right, r.Bottom));
+            list.Add(new Win(h, r.Left, r.Top, r.Right, r.Bottom, NameOf(pid)));
             return true;
         }, IntPtr.Zero);
         return list;
     }
 
     /// <summary>Top edges of windows minus everything above them in z-order; maximised windows are skipped.</summary>
-    private static List<Surface> WindowSurfaces(List<Win> windows)
+    private List<Surface> WindowSurfaces(List<Win> windows)
     {
         var result = new List<Surface>();
         for (var i = 0; i < windows.Count; i++)
         {
             var w = windows[i];
             if (IsZoomed(w.Hwnd)) continue;
+            if (ExcludeProcess?.Invoke(w.Process) == true) continue;
             var y = w.Top;
-            var segments = new List<(double L, double R)> { (w.Left + 6, w.Right - 6) };
+            // Never stand over the caption buttons (minimise / maximise / close) or the app icon / menu.
+            double dpi = 96;
+            try { dpi = GetDpiForWindow(w.Hwnd) is var d and > 0 ? d : 96; } catch { }
+            var k = dpi / 96.0;
+            var segments = new List<(double L, double R)> { (w.Left + 48 * k, w.Right - 150 * k) };
             for (var j = 0; j < i && segments.Count > 0; j++)
             {
                 var o = windows[j];

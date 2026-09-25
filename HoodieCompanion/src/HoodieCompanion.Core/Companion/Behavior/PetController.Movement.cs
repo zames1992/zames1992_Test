@@ -484,6 +484,8 @@ public sealed partial class PetController
         Animation.Play(wasAsleep ? AnimClip.WakeStartled : region == GrabRegion.Hood ? AnimClip.GrabReaction : HangClip(region), force: true, restart: true);
         Drives.OnUserAttention();
         Mind.OnGrabbed(wasAsleep);
+        Memory.Interaction("grab");
+        Memory.Remember("first-grab");
         return true;
     }
 
@@ -608,6 +610,8 @@ public sealed partial class PetController
         // A short skid in the direction of travel (it used to slide much further, which read as a jump).
         _slideVelocity = l.HorizontalDipPerSec * 0.22 * _monitorScale;
         Go(BehaviorState.Landing, $"landed {l.ImpactDipPerSec:0} dip/s", force: true);
+        if (_scaredFall) AfterScaredLanding();
+        if (_thrownByUser) { Memory.Interaction("throw"); if (l.ImpactDipPerSec > 1200) Memory.Remember("first-big-throw"); }
         var hard = _thrownByUser && l.ImpactDipPerSec >= HardLandingDip;
         Mind.OnLanded(hard);
         if (hard)
@@ -665,6 +669,13 @@ public sealed partial class PetController
         _jumpToMonitor = false;
         Go(BehaviorState.Idle, "recovered", force: true);
         Animation.Play(AnimClip.IdleBreathing);
+        if (_pendingAfterLanding is AnimClip react)
+        {
+            // It fell because the window under it vanished: a real little scare.
+            _pendingAfterLanding = null;
+            PlayEmoteAt(react, null, ReactionPriority.Contextual);
+            return;
+        }
         if (_travel is not null)
         {
             ContinueTravel();

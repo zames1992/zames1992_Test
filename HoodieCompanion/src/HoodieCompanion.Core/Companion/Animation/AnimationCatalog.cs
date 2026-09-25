@@ -58,6 +58,7 @@ public static class AnimationCatalog
             or AnimClip.SearchBackpack or AnimClip.CloseBackpack or AnimClip.PresentItem or AnimClip.MissingItem
             or AnimClip.BackpackHeavy or AnimClip.TearPage => "Inventory",
         AnimClip.CheckTime or AnimClip.Shiver => "Environment",
+        AnimClip.ShowItem or AnimClip.FanSelf or AnimClip.SipMug or AnimClip.PlayBall => "Inventory",
         AnimClip.BoundaryBump => "Boundaries",
         _ => "Other",
     };
@@ -255,6 +256,12 @@ public static class AnimationCatalog
         yield return C(AnimClip.Shiver, "Shivers - it is late and chilly.", "Night hours", "Clock", false, 1.4, 15, true, 300);
         // Boundaries
         yield return C(AnimClip.BoundaryBump, "Bumps into an invisible wall, understands, turns back.", "Walking into a Never-enter area", "Territory", false, 1.1, 45, false, 5, blend: 0.06);
+
+        // World items (used in context, found over time)
+        yield return C(AnimClip.ShowItem, "Holds up one of its things and shows it to you.", "Found / unlocked an item, about to use it", "Progression / intent", false, 1.3, 35, true, 0, blend: 0.15);
+        yield return C(AnimClip.FanSelf, "Sits and fans itself (and the hot computer) with a paper fan.", "CPU/GPU busy for a while", "Perception: PC load", true, 0, 25, true, 0, "Sit + fetch fan", "Put the fan away", 0.25);
+        yield return C(AnimClip.SipMug, "Sips from a warm mug, looking over at you.", "You've worked a long time without a break", "Perception: work session", true, 0, 25, true, 0, "Fetch mug", "Wave", 0.25);
+        yield return C(AnimClip.PlayBall, "Kicks its ball about and chases it.", "Bored and playful", "Intent: play", true, 0, 20, true, 0, "Fetch ball", "Pick it up", 0.2);
     }
 
     /// <summary>Renders the catalog as Markdown (used to produce ANIMATION_CATALOG.md).</summary>

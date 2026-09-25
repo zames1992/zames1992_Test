@@ -46,7 +46,7 @@ public sealed class CharacterRig : Canvas
     /// <summary>Paths of the body that accept mouse input (everything but the ground shadow and props).</summary>
     public IEnumerable<Path> HitParts => _partsByGroup.Where(k => IsBodyGroup(k.Key)).SelectMany(k => k.Value);
 
-    private static readonly HashSet<string> PropGroups = new() { "shadow", "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil", "crate" };
+    private static readonly HashSet<string> PropGroups = new() { "shadow", "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil", "crate", "fan", "mug", "ball", "blanket" };
 
     private static bool IsBodyGroup(string name) => !PropGroups.Contains(name);
 
@@ -121,10 +121,36 @@ public sealed class CharacterRig : Canvas
                 SnapsToDevicePixels = false,
             };
             if (!IsBodyGroup(groupName)) path.IsHitTestVisible = false;
+            if (fill is "#34363E" or "#262930" or "#25282E" && groupName is "head" or "torso" or "armL" or "armR") _baseFill[path] = fill!;
             _baseOpacity[path] = opacity;
             if (!_partsByGroup.TryGetValue(groupName, out var list)) _partsByGroup[groupName] = list = new List<Path>();
             list.Add(path);
             Children.Add(path);
+        }
+    }
+
+    // ------------------------------------------------------------------ hoodie colour (cosmetic, unlocked over time)
+
+    private readonly Dictionary<Path, string> _baseFill = new();
+
+    private static readonly Dictionary<string, Dictionary<string, string>> Palettes = new()
+    {
+        ["navy"] = new() { ["#34363E"] = "#2F3B56", ["#262930"] = "#232C42", ["#25282E"] = "#212A3E" },
+        ["forest"] = new() { ["#34363E"] = "#2F4538", ["#262930"] = "#233529", ["#25282E"] = "#21311F" },
+        ["maroon"] = new() { ["#34363E"] = "#56323A", ["#262930"] = "#40252B", ["#25282E"] = "#3A2227" },
+        ["sand"] = new() { ["#34363E"] = "#A08C6E", ["#262930"] = "#7E6C52", ["#25282E"] = "#766548" },
+    };
+
+    /// <summary>Recolours the hoodie (hood, body, sleeves, hem). Everything else stays: the character is the same.</summary>
+    public void SetHoodieColor(string color)
+    {
+        Palettes.TryGetValue(color, out var map);
+        foreach (var (path, fill) in _baseFill)
+        {
+            var target = map is not null && map.TryGetValue(fill, out var c) ? c : fill;
+            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(target));
+            brush.Freeze();
+            path.Fill = brush;
         }
     }
 
@@ -171,6 +197,11 @@ public sealed class CharacterRig : Canvas
         Set("book", 0, 0, 0, Pop(p.PropBook), Pop(p.PropBook));
         Set("notebook", 0, 0, 0, Pop(p.PropNotebook), Pop(p.PropNotebook));
         Set("pencil", 0, 0, 0, Pop(p.PropPencil), Pop(p.PropPencil));
+        Set("fan", 0, 0, 0, Pop(p.PropFan), Pop(p.PropFan));
+        // The mug stays upright whatever the arm does (plus a sip tilt).
+        Set("mug", 0, 0, -p.ArmLRot + p.MugTilt, Pop(p.PropMug), Pop(p.PropMug));
+        Set("ball", p.BallDx, p.BallDy, p.BallRot, Pop(p.PropBall), Pop(p.PropBall));
+        Set("blanket", 0, 0, 0, 1, 1);
         Set("crate", 0, 24 - 40 * (1 - Math.Clamp(p.PropCrate, 0, 1)), 0, Pop(p.PropCrate), Pop(p.PropCrate));
 
         foreach (var g in _order)
@@ -197,6 +228,10 @@ public sealed class CharacterRig : Canvas
         SetOpacity("notebook", p.PropNotebook);
         SetOpacity("pencil", p.PropPencil);
         SetOpacity("crate", p.PropCrate);
+        SetOpacity("fan", p.PropFan);
+        SetOpacity("mug", p.PropMug);
+        SetOpacity("ball", p.PropBall);
+        SetOpacity("blanket", p.PropBlanket);
         Opacity = p.Opacity;
     }
 

@@ -167,6 +167,34 @@
     20
    ],
    "parent": "torso"
+  },
+  "fan": {
+   "pivot": [
+    412,
+    610
+   ],
+   "parent": "armR"
+  },
+  "mug": {
+   "pivot": [
+    140,
+    596
+   ],
+   "parent": "armL"
+  },
+  "ball": {
+   "pivot": [
+    150,
+    800
+   ],
+   "parent": null
+  },
+  "blanket": {
+   "pivot": [
+    272,
+    560
+   ],
+   "parent": "body"
   }
  },
  "parts": [
@@ -344,6 +372,20 @@
    "path": "M 356 412 C 362 450 368 490 374 522",
    "fill": "none",
    "strokeWidth": 3
+  },
+  {
+   "name": "blanket.body",
+   "group": "blanket",
+   "path": "M 108 424 C 108 392 130 380 160 380 L 420 380 C 448 380 460 398 458 424 L 454 700 C 452 726 434 740 408 740 L 152 740 C 124 740 110 724 110 700 Z",
+   "fill": "#7B9BC6"
+  },
+  {
+   "name": "blanket.stripes",
+   "group": "blanket",
+   "path": "M 122 470 L 446 470 M 118 560 L 450 560 M 116 650 L 450 650",
+   "fill": "none",
+   "stroke": "#5E7FA9",
+   "strokeWidth": 10
   },
   {
    "name": "head.hood",
@@ -579,6 +621,78 @@
    "path": "M 176 -30 L 368 -30 M 176 18 L 368 18 M 214 -76 L 214 64 M 330 -76 L 330 64",
    "fill": "none",
    "strokeWidth": 5
+  },
+  {
+   "name": "fan.leaf",
+   "group": "fan",
+   "path": "M 412 606 L 366 516 A 66 66 0 0 1 468 520 Z",
+   "fill": "#EFE6D2"
+  },
+  {
+   "name": "fan.ribs",
+   "group": "fan",
+   "path": "M 412 606 L 388 522 M 412 606 L 414 512 M 412 606 L 442 520",
+   "fill": "none",
+   "strokeWidth": 3.5
+  },
+  {
+   "name": "fan.dot",
+   "group": "fan",
+   "ellipse": [
+    412,
+    606,
+    7,
+    7
+   ],
+   "fill": "#D96B52",
+   "strokeWidth": 3
+  },
+  {
+   "name": "mug.handle",
+   "group": "mug",
+   "path": "M 120 574 C 98 572 98 598 122 596",
+   "fill": "none",
+   "strokeWidth": 6
+  },
+  {
+   "name": "mug.body",
+   "group": "mug",
+   "path": "M 118 560 L 162 560 L 158 606 C 156 614 124 614 122 606 Z",
+   "fill": "#D96B52"
+  },
+  {
+   "name": "mug.band",
+   "group": "mug",
+   "path": "M 120 578 L 160 578",
+   "fill": "none",
+   "stroke": "#FBF4E2",
+   "strokeWidth": 6
+  },
+  {
+   "name": "mug.steam",
+   "group": "mug",
+   "path": "M 132 548 C 124 536 140 530 132 516 M 148 548 C 140 536 156 530 148 516",
+   "fill": "none",
+   "stroke": "#C9C2B0",
+   "strokeWidth": 4
+  },
+  {
+   "name": "ball.body",
+   "group": "ball",
+   "ellipse": [
+    150,
+    798,
+    34,
+    34
+   ],
+   "fill": "#E9A23B"
+  },
+  {
+   "name": "ball.stripes",
+   "group": "ball",
+   "path": "M 118 790 C 132 774 168 774 182 792 M 124 818 C 138 806 162 806 176 818",
+   "fill": "none",
+   "strokeWidth": 4
   }
  ]
 }

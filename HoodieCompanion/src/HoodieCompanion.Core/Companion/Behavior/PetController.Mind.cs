@@ -31,6 +31,7 @@ public sealed partial class PetController
         if (Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping && rule.Priority >= ReactionPriority.Contextual && e != PetEvent.UserReturned)
             return false;
         if (Reactions.Resolve(e, Mind, EffectiveMode, _time) is not { } r) return false;
+        if (!ExpressiveAllowed(r.Clips, r.Priority)) return false;
         Log?.Invoke($"react {e} -> {string.Join(", ", r.Clips)}");
         return PlayChain(r.Clips, r.Priority);
     }
@@ -111,6 +112,7 @@ public sealed partial class PetController
         Mind.OnUserInteraction();
         if (IsHiddenMode) return;
         _sleptBecauseUserAway = false;
+        Memory.Remember("first-welcome-back");
         void Greet()
         {
             // Notice the cursor → recognise the user → greet (chain from the reaction table).

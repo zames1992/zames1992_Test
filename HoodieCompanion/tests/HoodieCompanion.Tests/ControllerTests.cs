@@ -170,8 +170,10 @@ public class ControllerTests
         sim.Run(0.5);
         sim.Territory.SetHome(world.Monitors[0], new Vec2(400, 1040));
         sim.Pet.Execute(PetCommand.GoHome);
+        var log = new List<string>();
+        sim.Pet.Log += m => log.Add(m);
         sim.Run(90);
-        Assert.InRange(sim.Pet.Feet.X, 400 - 40, 400 + 40);
+        Assert.True(Math.Abs(sim.Pet.Feet.X - 400) < 40, string.Join(" | ", log.TakeLast(25)));
         Assert.Equal(1040, sim.Pet.Feet.Y, 1);
     }
 

@@ -7,6 +7,8 @@ using System.Windows;
 using System.Windows.Threading;
 using HoodieCompanion.Companion.Animation;
 using HoodieCompanion.Companion.Behavior;
+using HoodieCompanion.Companion.Memory;
+using HoodieCompanion.Companion.Perception;
 using HoodieCompanion.Features.Backpack;
 using HoodieCompanion.Features.Notes;
 using HoodieCompanion.Features.Reminders;
@@ -51,6 +53,9 @@ public sealed class AppHost : IDisposable
     private double _userIdle;
     private CommandChannel? _commands;
     private SurfaceScanner? _surfaceScanner;
+    private WindowEvents? _windowEvents;
+    private uint _lastInputTick;
+    private Vec2 _lastCursor;
     private int _housekeepingTicks;
     private RenderState _last;
     private bool _disposed;
@@ -65,6 +70,8 @@ public sealed class AppHost : IDisposable
         World = MonitorService.Query();
         Territory = new TerritoryService(territoryData, World);
         Pet = new PetController(World, Territory, Settings);
+        Memory = new CompanionMemory(storage);
+        Pet.Memory = Memory;
         Inventory = new InventoryService(storage);
         Notes = new NoteService(storage);
         Reminders = new ReminderService(storage);
@@ -84,6 +91,7 @@ public sealed class AppHost : IDisposable
     public WorldGeometry World { get; private set; }
     public TerritoryService Territory { get; }
     public PetController Pet { get; }
+    public CompanionMemory Memory { get; }
     public InventoryService Inventory { get; }
     public NoteService Notes { get; }
     public ReminderService Reminders { get; }
@@ -116,6 +124,7 @@ public sealed class AppHost : IDisposable
     {
         L.Set(Settings.Language);
         _petWindow = new PetWindow();
+        _petWindow.Rig.SetHoodieColor(Memory.Doc.HoodieColor);
         _propWindow = new WorldPropWindow();
         _panel = new QuickPanel(this);
         _alerts = new AlertCard(this);
@@ -162,7 +171,16 @@ public sealed class AppHost : IDisposable
         Pet.Place(InitialPosition(), appear: true);
         _commands = new CommandChannel((c, x, y) => _app.Dispatcher.BeginInvoke(() => DesktopCommand(c, x, y)));
         ApplyDesktopMenu();
+        _windowEvents = new WindowEvents(e => Pet.Perception.OnWindowEvent(e));
         _surfaceScanner = new SurfaceScanner(_app.Dispatcher, s => Pet.SetSurfaces(SurfaceOverride ?? (Settings.ClimbOnWindows && !EmergencyHidden ? s : Array.Empty<Surface>())));
+        _windowEvents.Changed += () => _surfaceScanner?.Poke();
+        _surfaceScanner.FastMode = () => _windowEvents.Dragging;
+        _surfaceScanner.ExcludeProcess = p =>
+        {
+            if (p is null) return false;
+            var rule = Territory.Data.AppRules.FirstOrDefault(r => string.Equals(r.ProcessName, p, StringComparison.OrdinalIgnoreCase));
+            return rule is { PresenceMode: AppPresenceMode.Avoid or AppPresenceMode.Hide or AppPresenceMode.Quiet } || AppCategories.Of(p, false) == AppCategory.Game;
+        };
         _clock.Tick += OnFrame;
         _clock.Start();
         _housekeeping.Start();
@@ -219,12 +237,29 @@ public sealed class AppHost : IDisposable
                 if (_petWindow.IsDragging || (_petWindow.IsPressed && _petWindow.PressAge > 0.4 && _buttonUpFor > 0.2)) _petWindow.CancelPress(notifyRelease: true);
                 if (Pet.State == BehaviorState.Grabbed) Pet.EndGrab(CursorOverride ?? MouseService.Cursor());
             }
+            // Typing is inferred without reading keys: input happened but the pointer did not move.
+            var cursorNow = CursorOverride ?? MouseService.Cursor();
+            var inputTick = MouseService.LastInputTick();
+            var keyboardish = inputTick != _lastInputTick && Vec2.Distance(cursorNow, _lastCursor) < 0.5 && !buttonDown && CursorOverride is null;
+            _lastInputTick = inputTick;
+            _lastCursor = cursorNow;
+            var status = LatestStatus;
             var input = new PetInput
             {
                 Dt = dt,
-                Cursor = CursorOverride ?? MouseService.Cursor(),
+                Env = new EnvironmentSample
+                {
+                    KeyboardInput = keyboardish,
+                    ForegroundProcess = _foreground.ProcessName,
+                    ForegroundBounds = _foreground.Bounds,
+                    ForegroundFullscreen = _foreground.FullscreenMonitorId is not null,
+                    Cpu = status?.CpuUsage,
+                    Gpu = status?.GpuUsageOptional,
+                    NetDown = status?.NetworkDownloadOptional,
+                },
+                Cursor = cursorNow,
                 LeftButtonDown = buttonDown,
-                UserIdleSeconds = _userIdle,
+                UserIdleSeconds = CursorOverride is null ? MouseService.UserIdleSeconds() : _userIdle,
                 FullscreenMonitorId = _foreground.FullscreenMonitorId,
                 ForegroundRule = _foregroundRule,
                 ForegroundMonitorId = _foreground.MonitorId,
@@ -276,6 +311,9 @@ public sealed class AppHost : IDisposable
             _userIdle = MouseService.UserIdleSeconds();
 
             _foreground = _fullscreen.Sample(World);
+            // Nothing to climb while asleep or away: the scanner rests too.
+            if (_surfaceScanner is not null)
+                _surfaceScanner.Enabled = Settings.ClimbOnWindows && !EmergencyHidden && Pet.State is not (BehaviorState.Sleeping or BehaviorState.Hidden);
             if (_foreground.ProcessName is { } pn)
             {
                 if (_recentProcesses.Count < 64) _recentProcesses.Add(pn);
@@ -331,8 +369,8 @@ public sealed class AppHost : IDisposable
     private void OnSystemStatus(SystemStatus s)
     {
         History.Add(s);
-        var mood = _environment.Feed(s, 1);
-        if (mood != EnvironmentMood.Calm) Pet.Environment(mood);
+        // PC load, downloads etc. now reach Hoodie through its perception (see OnFrame → PetInput.Env).
+        _environment.Feed(s, 1);
         SystemStatusUpdated?.Invoke(s);
     }
 
@@ -674,6 +712,7 @@ public sealed class AppHost : IDisposable
 
     public void SaveAll()
     {
+        Memory.Flush(force: true);
         RememberPosition();
         SaveSettings();
         SaveTerritory();
@@ -704,6 +743,7 @@ public sealed class AppHost : IDisposable
         StickyNotes?.CloseAll();
         _commands?.Dispose();
         _surfaceScanner?.Dispose();
+        _windowEvents?.Dispose();
     }
 
     public RenderState LastRender => _last;

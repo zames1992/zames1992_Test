@@ -38,4 +38,6 @@ public enum AnimClip
     SleepLying, DreamTwitch, WakeFromLying, WakeStartled,
     BackpackHeavy, TearPage,
     CheckTime, Shiver, BoundaryBump,
+    // v1.3 world items
+    ShowItem, FanSelf, SipMug, PlayBall,
 }

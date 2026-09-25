@@ -19,6 +19,8 @@ public struct Pose
     public double Opacity, Scale;
     // Accessories (0 = hidden .. 1 = fully shown). They exist only while an animation uses them.
     public double PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil, PropCrate;
+    // World items (v1.3): fan and mug are held, the ball lives on the floor in front, the blanket covers a lying Hoodie.
+    public double PropFan, PropMug, MugTilt, PropBall, BallDx, BallDy, BallRot, PropBlanket;
 
     public static Pose Neutral => new()
     {
@@ -51,6 +53,9 @@ public struct Pose
             PropLaptop = L(a.PropLaptop, b.PropLaptop, t), LaptopLid = L(a.LaptopLid, b.LaptopLid, t),
             PropBook = L(a.PropBook, b.PropBook, t), PropNotebook = L(a.PropNotebook, b.PropNotebook, t),
             PropPencil = L(a.PropPencil, b.PropPencil, t), PropCrate = L(a.PropCrate, b.PropCrate, t),
+            PropFan = L(a.PropFan, b.PropFan, t), PropMug = L(a.PropMug, b.PropMug, t), MugTilt = L(a.MugTilt, b.MugTilt, t),
+            PropBall = L(a.PropBall, b.PropBall, t), BallDx = L(a.BallDx, b.BallDx, t), BallDy = L(a.BallDy, b.BallDy, t),
+            BallRot = L(a.BallRot, b.BallRot, t), PropBlanket = L(a.PropBlanket, b.PropBlanket, t),
         };
     }
 
@@ -61,6 +66,7 @@ public struct Pose
         ArmLRot, ArmRRot, ArmLDy, ArmRDy, LegLRot, LegRRot, LegLDy, LegRDy, LegLSy, LegRSy, StringsRot,
         ItemAlpha, ItemDx, ItemDy, ItemRot, ItemScale, ShadowScale, ShadowAlpha, Opacity, Scale,
         PropBackpack, BackpackLid, PropLaptop, LaptopLid, PropBook, PropNotebook, PropPencil, PropCrate,
+        PropFan, PropMug, MugTilt, PropBall, BallDx, BallDy, BallRot, PropBlanket,
     };
 }
 

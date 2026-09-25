@@ -19,6 +19,7 @@ public sealed partial class PetController
     private sealed class ActivityPlan
     {
         public required string Name;
+        public WorldItem Item;
         public required AnimClip Loop;
         public required List<(AnimClip Clip, double? Duration)> Exit;
         public readonly Queue<(AnimClip Clip, double? Duration)> Queue = new();
@@ -33,6 +34,10 @@ public sealed partial class PetController
     }
 
     private ActivityPlan? _activity;
+
+    /// <summary>The world item currently in use (activity item, or the blanket while sleeping).</summary>
+    public WorldItem HeldItem => Machine.State == BehaviorState.Activity && _activity is { } a ? a.Item
+        : Machine.State == BehaviorState.Sleeping && _sleepWithBlanket ? WorldItem.Blanket : WorldItem.None;
     private PanelActivity _panelActivity;
 
     public PanelActivity CurrentPanelActivity => _panelActivity;
@@ -43,21 +48,21 @@ public sealed partial class PetController
     /// standing activities stand up first.
     /// </summary>
     private void StartActivity(string name, bool sitting, List<(AnimClip, double?)> enter, AnimClip loop,
-        List<(AnimClip, double?)> exit, double? loopSeconds, bool fromPanel = false)
+        List<(AnimClip, double?)> exit, double? loopSeconds, bool fromPanel = false, WorldItem item = WorldItem.None)
     {
         if (!CanReact) return;
         if (Machine.State == BehaviorState.Sleeping)
         {
-            WakeUp(() => StartActivity(name, sitting, enter, loop, exit, loopSeconds, fromPanel));
+            WakeUp(() => StartActivity(name, sitting, enter, loop, exit, loopSeconds, fromPanel, item));
             return;
         }
         if (!sitting && Machine.State == BehaviorState.Sitting)
         {
-            StandUp(() => StartActivity(name, sitting, enter, loop, exit, loopSeconds, fromPanel));
+            StandUp(() => StartActivity(name, sitting, enter, loop, exit, loopSeconds, fromPanel, item));
             return;
         }
 
-        var plan = new ActivityPlan { Name = name, Loop = loop, Exit = new List<(AnimClip, double?)>(exit), LoopSeconds = loopSeconds, Sitting = sitting, FromPanel = fromPanel };
+        var plan = new ActivityPlan { Item = item, Name = name, Loop = loop, Exit = new List<(AnimClip, double?)>(exit), LoopSeconds = loopSeconds, Sitting = sitting, FromPanel = fromPanel };
         var alreadySeated = Machine.State == BehaviorState.Sitting || (Machine.State == BehaviorState.Activity && _activity is { Sitting: true });
         if (sitting && !alreadySeated) plan.Queue.Enqueue((AnimClip.SitDown, null));
         foreach (var e in enter) plan.Queue.Enqueue(e);

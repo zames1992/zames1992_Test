@@ -96,6 +96,7 @@ public sealed partial class PetController
 
     private void FallOffSurface(string reason)
     {
+        if (reason == "platform gone") _scaredFall = true;
         var m = Metrics;
         _ignoreSurface = _onSurface;
         _ignoreSurfaceUntil = _time + 0.6;
@@ -145,6 +146,7 @@ public sealed partial class PetController
             Physics.Velocity = Vec2.Zero;
             Land(new LandingInfo(impact, sideways * 0.3), m);
             StandOnSurface(s);
+            Memory.Remember("first-window-top");
             return true;
         }
         return false;
@@ -210,7 +212,12 @@ public sealed partial class PetController
     {
         if (_climbOntoSurface is not { } id) return;
         _climbOntoSurface = null;
-        if (FindSurface(id) is { } s && s.Contains(Feet.X, Metrics.HalfWidthPx * 0.2)) StandOnSurface(s);
+        if (FindSurface(id) is { } s && s.Contains(Feet.X, Metrics.HalfWidthPx * 0.2))
+        {
+            StandOnSurface(s);
+            Memory.Habituate("climbed");
+            Memory.Remember("first-window-top");
+        }
         else FallOffSurface("platform moved away");
     }
 
@@ -298,6 +305,8 @@ public sealed partial class PetController
                 if (w.FloorY - Feet.Y > 0.5) return;
                 Feet = new Vec2(Feet.X, w.FloorY);
                 _wall = null;
+                Memory.Habituate("climbed");
+                Memory.Remember("first-wall-climb");
                 Go(BehaviorState.Landing, "slid down the side", force: true);
                 _landingImpact = 0;
                 _slideVelocity = 0;

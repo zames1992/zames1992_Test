@@ -62,6 +62,18 @@ public static partial class ProceduralAnimator
         p.ShadowAlpha = 1 - k;
     }
 
+    /// <summary>Shows the prop of a world item (used by ShowItem).</summary>
+    private static void ShowProp(ref Pose p, WorldItem item, double k)
+    {
+        switch (item)
+        {
+            case WorldItem.Fan: p.PropFan = k; break;
+            case WorldItem.Mug: p.PropMug = k; break;
+            case WorldItem.Ball: p.PropBall = k; break;
+            case WorldItem.Blanket: p.ItemAlpha = k; break;
+        }
+    }
+
     private static double Env(double u, double inT, double outT) =>
         MathUtil.SmoothStep(u / inT) * (1 - MathUtil.SmoothStep((u - (1 - outT)) / outT));
 
@@ -877,6 +889,7 @@ public static partial class ProceduralAnimator
             case AnimClip.SleepLying:
             {
                 Lie(ref p, 1, ctx.Time);
+                if (ctx.HeldItem == WorldItem.Blanket) p.PropBlanket = MathUtil.SmoothStep(t / 0.8);
                 var br = Math.Sin(ctx.Time * tau / 4.2);
                 p.EyeOpen = 0;
                 p.TorsoDy = 3 * br;
@@ -893,6 +906,7 @@ public static partial class ProceduralAnimator
             case AnimClip.DreamTwitch:
             {
                 Lie(ref p, 1, ctx.Time);
+                if (ctx.HeldItem == WorldItem.Blanket) p.PropBlanket = 1;
                 var tw = MathUtil.Bump(u / 0.3) + 0.6 * MathUtil.Bump((u - 0.45) / 0.25);
                 p.EyeOpen = 0;
                 p.LegLRot = 16 - 14 * tw;
@@ -976,6 +990,74 @@ public static partial class ProceduralAnimator
                 p.HeadRot = 6 * crumple - 5 * toss;
                 p.LookY = 0.6 * (1 - toss);
                 fx = u > 0.3 && u < 0.97 ? PoseEffect.PaperBall : PoseEffect.None;
+                break;
+            }
+
+            // ---------------- WORLD ITEMS ----------------
+            case AnimClip.ShowItem:
+            {
+                // Pulls it out and holds it up for you to see, then looks at you.
+                var up = MathUtil.SmoothStep(u / 0.35);
+                var look = MathUtil.SmoothStep((u - 0.55) / 0.3);
+                Idle(ref p, ctx.Time);
+                ShowProp(ref p, ctx.HeldItem, up);
+                p.ArmLRot = MathUtil.Lerp(0, -38, up);
+                p.ArmRRot = MathUtil.Lerp(0, ctx.HeldItem == WorldItem.Fan ? -40 : 38, up);
+                p.ArmLDy = -28 * up;
+                p.ArmRDy = -28 * up;
+                // The ball (normally on the floor) comes up into the hands.
+                p.BallDx = 118 * up;
+                p.BallDy = -236 * up;
+                p.LookY = 0.6 * up * (1 - look) - 0.1 * look;
+                p.HeadRot = 5 * up * (1 - look);
+                p.EyeScale = 1 + 0.12 * up;
+                fx = u > 0.35 ? PoseEffect.Sparkle : PoseEffect.None;
+                break;
+            }
+            case AnimClip.FanSelf:
+            {
+                Sit(ref p, 1, ctx.Time);
+                var wave = Math.Sin(ctx.Time * 9);
+                p.PropFan = MathUtil.SmoothStep(t / 0.3);
+                p.ArmRRot = -118 + 14 * wave;
+                p.ArmRDy = -18;
+                p.HeadRot = -4 + 2 * wave;
+                p.EyeOpen = 0.55;
+                p.StringsRot = 5 * Math.Sin(ctx.Time * 9 + 0.6);
+                fx = PoseEffect.Heat;
+                break;
+            }
+            case AnimClip.SipMug:
+            {
+                Idle(ref p, ctx.Time);
+                var cycle = (t % 4.0) / 4.0;
+                var sip = MathUtil.Bump((cycle - 0.45) / 0.35);
+                p.PropMug = MathUtil.SmoothStep(t / 0.3);
+                p.ArmLRot = -40 - 88 * sip;
+                p.ArmLDy = -22 - 10 * sip;
+                p.MugTilt = 35 * sip;
+                p.HeadRot = -6 * sip + 3 * (1 - sip);
+                p.EyeOpen = 1 - 0.7 * sip;
+                p.LookX = 0.4 * (1 - sip);
+                break;
+            }
+            case AnimClip.PlayBall:
+            {
+                Idle(ref p, ctx.Time);
+                var cycle = (t % 1.8) / 1.8;
+                var kick = MathUtil.Bump(cycle / 0.25);
+                var roll = Math.Sin(Math.PI * cycle);
+                p.PropBall = MathUtil.SmoothStep(t / 0.3);
+                p.BallDx = -150 * roll;
+                p.BallDy = -60 * Math.Abs(Math.Sin(2 * Math.PI * cycle));
+                p.BallRot = -360 * cycle;
+                p.LegLRot = 32 * kick;
+                p.LegLDy = -10 * kick;
+                p.ArmLRot = 25 * kick;
+                p.ArmRRot = -25 * kick;
+                p.RootDy = ctx.ReducedMotion ? 0 : -8 * MathUtil.Bump((cycle - 0.55) / 0.3);
+                p.LookY = 0.8;
+                p.LookX = -0.6 * roll;
                 break;
             }
 

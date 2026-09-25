@@ -16,6 +16,18 @@ public struct AnimContext
     /// <summary>Pendulum angular speed while held (deg/s).</summary>
     public double SwingSpeed;
     public bool ReducedMotion;
+    /// <summary>The world item Hoodie is using right now (drawn by the item clips).</summary>
+    public WorldItem HeldItem;
+}
+
+/// <summary>Hoodie's own things: they exist in its world and are used in context.</summary>
+public enum WorldItem
+{
+    None,
+    Fan,
+    Mug,
+    Ball,
+    Blanket,
 }
 
 /// <summary>

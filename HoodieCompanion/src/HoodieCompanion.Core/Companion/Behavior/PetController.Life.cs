@@ -65,11 +65,11 @@ public sealed partial class PetController
         if (_time < _nextDecisionAt)
         {
             // Between decisions the idle director keeps the body alive with small, varied moments.
-            if (Machine.TimeInState > 0.8 && IdleDirector.Tick(_time, IdlePosture.Standing, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear) is AnimClip micro)
+            if (Machine.TimeInState > 0.8 && IdleDirector.Tick(_time, IdlePosture.Standing, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear, Perception.UserBusy) is AnimClip micro)
                 PlayEmoteAt(micro, null, ReactionPriority.Idle);
             return;
         }
-        ScheduleDecision(Brain.NextDecisionDelay(EffectiveMode) * AfkDecisionFactor);
+        ScheduleDecision(IntentsDelay() * AfkDecisionFactor);
         Decide();
     }
 
@@ -132,8 +132,13 @@ public sealed partial class PetController
             _onSurface is not null,
             _onSurface is null && ClimbableWallSide() is not null);
 
-        var act = Brain.Choose(ctx);
-        Log?.Invoke($"decide {act} (mode {mode})");
+        // Intent: a reason first, then the action.
+        var intent = Intents.Choose(BuildIntentContext(ctx));
+        var act = intent.Activity;
+        Mind.CurrentIntent = act.ToString();
+        Mind.CurrentReason = intent.Reason;
+        Log?.Invoke($"intent {act} because {intent.Reason} (mode {mode})");
+        if (DoIntent(act)) return;
         switch (act)
         {
             case Activity.Wander:
@@ -354,7 +359,7 @@ public sealed partial class PetController
             if (Animation.Current is not (AnimClip.SitDown or AnimClip.SitIdle or AnimClip.WakeUp or AnimClip.WakeFromLying)) Animation.Play(AnimClip.SitIdle);
             if (Animation.Current is AnimClip.WakeUp or AnimClip.WakeFromLying && Animation.IsFinished) Animation.Play(AnimClip.SitIdle);
             if (Animation.Current == AnimClip.SitIdle && Machine.TimeInState > 2 &&
-                IdleDirector.Tick(_time, IdlePosture.Sitting, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear) is AnimClip m)
+                IdleDirector.Tick(_time, IdlePosture.Sitting, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear, Perception.UserBusy) is AnimClip m)
             {
                 _sitMicro = m;
                 _sitMicroUntil = _time + 5 + _rng.NextDouble() * 7;
@@ -415,6 +420,9 @@ public sealed partial class PetController
         if (_sleptBecauseUserAway) minutes = Math.Max(minutes, 30);
         _sleepUntil = _time + minutes * 60;
         _nextDream = _time + 25 + _rng.NextDouble() * 40;
+        // With a blanket, especially at night.
+        _sleepWithBlanket = Memory.HasItem("blanket") && (Perception.Night || Mind.IsNight || _rng.NextDouble() < 0.5);
+        if (_sleepWithBlanket) Memory.Remember("first-blanket-nap");
         _sitMicro = null;
         Go(BehaviorState.Sleeping, "fall asleep", force: true);
         // Sleeping is lying down, curled up (sitting upright asleep looked eerie).
@@ -422,6 +430,7 @@ public sealed partial class PetController
     }
 
     private double _nextDream;
+    private bool _sleepWithBlanket;
 
     /// <summary>Is there room to lie down here without the body poking out of the screen?</summary>
     private bool RoomToLie()
@@ -589,6 +598,8 @@ public sealed partial class PetController
     {
         _dragHovering = false;
         Mind.OnItemReceived();
+        Memory.Interaction("item");
+        Memory.Remember("first-gift");
         if (Machine.State == BehaviorState.Activity && _activity is { Name: "backpack" })
         {
             // Backpack is already open: the object goes straight in.
@@ -726,7 +737,12 @@ public sealed partial class PetController
 
         // Look at the user's hand.
         double targetWeight = 0, lx = 0, ly = 0;
-        if (_time < _lookScriptUntil)
+        if (_time < _lookAtUntil)
+        {
+            (lx, ly) = _lookAt;
+            targetWeight = 1;
+        }
+        else if (_time < _lookScriptUntil)
         {
             var k = (_lookScriptUntil - _time) / 3.2;
             lx = Math.Sin(k * Math.PI * 2) * 0.9;
@@ -814,6 +830,7 @@ public sealed partial class PetController
     {
         Drives.OnUserAttention();
         Mind.OnClicked();
+        Memory.Interaction("click");
         if (Machine.State == BehaviorState.Sleeping)
         {
             WakeUp(null);

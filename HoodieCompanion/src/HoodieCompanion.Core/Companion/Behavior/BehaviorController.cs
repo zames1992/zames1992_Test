@@ -34,6 +34,22 @@ public enum Activity
     ClimbWall,
     /// <summary>Hop down from the platform Hoodie stands on.</summary>
     HopDown,
+    /// <summary>Do nothing on purpose: just be there, breathe, look around a little.</summary>
+    Nothing,
+    /// <summary>Go and have a look at a window / app that just appeared (curiosity).</summary>
+    InvestigateWindow,
+    /// <summary>The PC is working hard: fetch the fan (or haul the crate) and cool things down.</summary>
+    CoolDown,
+    /// <summary>The user has worked for a long time: come closer with a mug, stretch, suggest a break.</summary>
+    SuggestBreak,
+    /// <summary>The user is typing away: sit down with the laptop and "work" alongside, quietly.</summary>
+    WorkAlongside,
+    /// <summary>Go to a spot Hoodie remembers liking.</summary>
+    FavoritePlace,
+    /// <summary>Play with the ball.</summary>
+    PlayBall,
+    /// <summary>Sit where it can see the pointer and watch what the user is doing.</summary>
+    WatchUser,
 }
 
 public readonly record struct DecisionContext(

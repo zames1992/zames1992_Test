@@ -49,7 +49,8 @@ public sealed class SystemMonitorService : IDisposable
             var (down, up) = Network();
             var disk = Disk();
             var (selfCpu, selfMem) = Self();
-            var status = new SystemStatus(cpu, mem.ullTotalPhys - mem.ullAvailPhys, mem.ullTotalPhys, disk, down, up, null,
+            var gpu = Gpu();
+            var status = new SystemStatus(cpu, mem.ullTotalPhys - mem.ullAvailPhys, mem.ullTotalPhys, disk, down, up, gpu,
                 TimeSpan.FromMilliseconds(Environment.TickCount64), DateTime.Now, selfCpu, selfMem);
             Latest = status;
             _dispatcher.BeginInvoke(() => Updated?.Invoke(status));
@@ -133,6 +134,56 @@ public sealed class SystemMonitorService : IDisposable
             return null;
         }
     }
+
+    private PerformanceCounterCategory? _gpuCategory;
+    private bool _gpuTried;
+    private int _gpuTick;
+    private double? _gpuLast;
+
+    /// <summary>
+    /// GPU 3D engine utilisation from the "GPU Engine" performance counters (Windows 10 1709+), read every 2 s.
+    /// Null where unavailable. Temperatures are not readable without admin rights / vendor tools.
+    /// </summary>
+    private double? Gpu()
+    {
+        try
+        {
+            if (!_gpuTried)
+            {
+                _gpuTried = true;
+                if (PerformanceCounterCategory.Exists("GPU Engine")) _gpuCategory = new PerformanceCounterCategory("GPU Engine");
+            }
+            if (_gpuCategory is null) return null;
+            if (_gpuTick++ % 2 != 0) return _gpuLast;
+            var data = _gpuCategory.ReadCategory();
+            if (!data.Contains("Utilization Percentage")) return _gpuLast = null;
+            double sum = 0;
+            foreach (System.Diagnostics.InstanceData d in data["Utilization Percentage"].Values)
+            {
+                if (!d.InstanceName.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase)) continue;
+                sum += d.Sample.RawValue;
+            }
+            // The counter is a 100 ns busy-time timer: busy time gained / wall time elapsed = utilisation.
+            var now = Environment.TickCount64;
+            double? pct = null;
+            if (_gpuPrevTicks > 0 && now > _gpuPrevTicks)
+            {
+                var dt = (now - _gpuPrevTicks) * 10_000.0; // 100 ns units
+                pct = Math.Clamp((sum - _gpuPrevSum) / dt * 100, 0, 100);
+            }
+            _gpuPrevSum = sum;
+            _gpuPrevTicks = now;
+            return _gpuLast = pct;
+        }
+        catch
+        {
+            _gpuCategory = null;
+            return null;
+        }
+    }
+
+    private double _gpuPrevSum;
+    private long _gpuPrevTicks;
 
     private (double Cpu, ulong Mem) Self()
     {

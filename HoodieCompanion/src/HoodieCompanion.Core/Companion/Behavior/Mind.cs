@@ -23,6 +23,37 @@ public enum AfkPhase
 }
 
 /// <summary>
+/// Stable character traits (0..1). Seeded once per install so every Hoodie is a little different, then
+/// shaped slowly by what happens (attachment grows with time together, caution with scares, confidence with
+/// successful climbs). One trait influences many decisions; none maps to a single mechanic.
+/// </summary>
+public sealed class Personality
+{
+    public double Curiosity { get; set; } = 0.55;
+    public double Energy { get; set; } = 0.55;
+    public double Confidence { get; set; } = 0.5;
+    public double Playfulness { get; set; } = 0.5;
+    public double Attachment { get; set; } = 0.3;
+    public double Comfort { get; set; } = 0.5;
+    public double Caution { get; set; } = 0.45;
+
+    public static Personality FromSeed(int seed)
+    {
+        var r = new Random(seed);
+        double T() => 0.35 + r.NextDouble() * 0.4;
+        return new Personality
+        {
+            Curiosity = T(), Energy = T(), Confidence = T(), Playfulness = T(), Attachment = 0.2 + r.NextDouble() * 0.15,
+            Comfort = T(), Caution = T(),
+        };
+    }
+
+    public override string ToString() =>
+        $"curiosity {Curiosity:0.00} energy {Energy:0.00} confidence {Confidence:0.00} playfulness {Playfulness:0.00} " +
+        $"attachment {Attachment:0.00} comfort {Comfort:0.00} caution {Caution:0.00}";
+}
+
+/// <summary>
 /// Hoodie's hidden inner state. Values are 0..1, drift slowly on their own and are nudged by events.
 /// They only bias which clip / activity is chosen and how; they are never shown as meters, and ignoring
 /// Hoodie never makes it sad or punishes the user.
@@ -34,6 +65,13 @@ public sealed class Mind
     private readonly CharacterDrives _drives;
 
     public Mind(CharacterDrives drives) => _drives = drives;
+
+    /// <summary>Stable traits (see <see cref="Personality"/>).</summary>
+    public Personality Traits { get; set; } = new();
+
+    /// <summary>What Hoodie currently intends and why (for the debug view and logs; never shown as UI).</summary>
+    public string? CurrentIntent { get; set; }
+    public string? CurrentReason { get; set; }
 
     // Core parameters (0..1).
     public double Energy => _drives.Energy;
@@ -137,6 +175,8 @@ public sealed class Mind
     public void OnFailure() { Mood -= 0.08; Stress += 0.1; Clamp(); }
     public void OnPlayed() { Boredom -= 0.2; Mood += 0.05; Clamp(); }
     public void OnRested() { Sleepiness -= 0.4; Clamp(); }
+
+    public void Curiosity2Boost(double d) => Curiosity2(d);
 
     private void Curiosity2(double d) => _drives.Curiosity = Math.Clamp(_drives.Curiosity + d, 0, 1);
 

@@ -49,9 +49,10 @@ public sealed class IdleDirector
     /// Returns a micro-action to play now, or null. <paramref name="calm"/> (Focus/Quiet) stretches every
     /// interval and removes big movements.
     /// </summary>
-    public AnimClip? Tick(double now, IdlePosture posture, Mind mind, PresenceMode mode, bool reducedMotion, bool cursorNear)
+    public AnimClip? Tick(double now, IdlePosture posture, Mind mind, PresenceMode mode, bool reducedMotion, bool cursorNear, bool userBusy = false)
     {
-        var calm = mode is PresenceMode.Focus or PresenceMode.Quiet;
+        // While the user is busy only the smallest moments happen, and less often.
+        var calm = mode is PresenceMode.Focus or PresenceMode.Quiet || userBusy;
         if (now >= _nextBaseSwap)
         {
             _nextBaseSwap = now + 20 + _rng.NextDouble() * 25;
@@ -131,9 +132,12 @@ public sealed class IdleDirector
         yield return (AnimClip.PeekIn, 0.4 + m.Curiosity * 0.5);
     }
 
+    /// <summary>Clips that are not unlocked yet are skipped (progression).</summary>
+    public Func<AnimClip, bool>? Allowed { get; set; }
+
     private AnimClip? Pick(IEnumerable<(AnimClip Clip, double Weight)> options)
     {
-        var list = options.Where(o => o.Weight > 0 && o.Clip != _last).ToList();
+        var list = options.Where(o => o.Weight > 0 && o.Clip != _last && (Allowed?.Invoke(o.Clip) ?? true)).ToList();
         if (list.Count == 0) return null;
         var total = list.Sum(o => o.Weight);
         var r = _rng.NextDouble() * total;

@@ -1,5 +1,7 @@
 using HoodieCompanion.Companion.Animation;
 using HoodieCompanion.Companion.Interaction;
+using HoodieCompanion.Companion.Memory;
+using HoodieCompanion.Companion.Perception;
 using HoodieCompanion.Companion.Physics;
 using HoodieCompanion.Features.SystemMonitor;
 using HoodieCompanion.Geometry;
@@ -23,6 +25,8 @@ public struct PetInput
     public string? ForegroundMonitorId;
     /// <summary>Local hour of day (0-23) for time-of-day moods; null = unknown.</summary>
     public int? LocalHour;
+    /// <summary>What the platform perceives about the PC (foreground app, load, typing...).</summary>
+    public EnvironmentSample Env;
 }
 
 /// <summary>What the renderer needs to draw one frame.</summary>
@@ -101,8 +105,20 @@ public sealed partial class PetController
         Animation = new AnimationController(_rng);
         Brain = new BehaviorController(_rng);
         Mind = new Mind(Drives);
+        Intents = new IntentSystem(Brain, _rng);
+        // Until the host attaches the persistent memory: an in-memory one whose personality follows the rng seed.
+        var memory = new CompanionMemory(null);
+        memory.Doc.PersonalitySeed = _rng.Next();
+        Memory = memory;
+        Perception.IsNewApp = p => Memory.SeeApp(p, AppCategories.Of(p, false));
         Reactions = new ReactionSystem(_rng);
         IdleDirector = new IdleDirector(_rng);
+        IdleDirector.Allowed = c => c switch
+        {
+            AnimClip.Spin => Memory.IsUnlocked("spin"),
+            AnimClip.Dance => Memory.IsUnlocked("dance"),
+            _ => true,
+        };
         Mode = settings.RestorePresenceOnStart ? settings.CurrentPresenceMode : settings.DefaultPresenceMode;
         _modeBeforeAlone = Mode == PresenceMode.Alone ? PresenceMode.Normal : Mode;
         var p = world.Primary.WorkArea;
@@ -121,6 +137,22 @@ public sealed partial class PetController
     public BehaviorController Brain { get; }
     /// <summary>Hidden inner parameters (energy, mood, curiosity, boredom, sleepiness, stress, affection...).</summary>
     public Mind Mind { get; }
+    public IntentSystem Intents { get; }
+    /// <summary>What Hoodie notices about the PC.</summary>
+    public PerceptionSystem Perception { get; } = new();
+
+    private CompanionMemory _memory = null!;
+
+    /// <summary>What Hoodie remembers (local). Setting it also derives the stable personality from it.</summary>
+    public CompanionMemory Memory
+    {
+        get => _memory;
+        set
+        {
+            _memory = value;
+            Mind.Traits = ShapePersonality(value);
+        }
+    }
     /// <summary>Event → reaction table with priorities and cooldowns.</summary>
     public ReactionSystem Reactions { get; }
     public IdleDirector IdleDirector { get; }
@@ -191,6 +223,8 @@ public sealed partial class PetController
         Machine.Tick(dt);
         Drives.Update(dt, Machine.State, _run && Machine.State == BehaviorState.Walking);
         if (input.LocalHour is int hour) UpdateClock(hour);
+        // Perception and memory run on wall time (capped): a slow or paused frame loop must not lose time together.
+        UpdatePerception(input, Math.Clamp(input.Dt, 0, 5));
         var afkChange = Mind.Update(dt, Machine.State, input.UserIdleSeconds, Machine.State == BehaviorState.Walking);
         if (afkChange is AfkPhase oldPhase) OnAfkPhaseChanged(oldPhase, Mind.Afk);
         if (Machine.State == BehaviorState.Grabbed) Mind.OnHeldTick(dt, Grab.AngularVelocity);
@@ -258,6 +292,7 @@ public sealed partial class PetController
             AirVy = Math.Clamp(Physics.Velocity.Y / m.Dip(1400), -1.5, 1.5),
             SwingAngle = Grab.Angle,
             SwingSpeed = Grab.AngularVelocity,
+            HeldItem = HeldItem,
         };
         Animation.ReducedMotion = Settings.ReducedMotion;
         var pose = Animation.Update(dt, ctx);
