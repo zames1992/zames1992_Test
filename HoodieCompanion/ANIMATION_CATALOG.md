@@ -3,7 +3,7 @@
 Generated from `AnimationCatalog.cs` (the table the runtime uses). All clips are procedural poses of the cutout rig
 in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb count and clothing can never drift.
 
-**128 clips** in 19 behaviour states. See PLAN.md for the state machine, the event→reaction system and the idle director.
+**132 clips** in 19 behaviour states. See PLAN.md for the state machine, the event→reaction system and the idle director.
 
 ## Idle basic
 
@@ -214,6 +214,10 @@ in `Assets/rig.json` — no frame-by-frame raster art, so the silhouette, limb c
 | CloseBackpack | Closes the backpack and swings it away. | Backpack panel closed / item stored | Backpack UI | One-shot | 0.35 s | 55 | No | — | Contextual | Backpack open | Idle |
 | BackpackHeavy | The backpack is heavy - hauls it round with effort. | Many items in the backpack | Inventory | One-shot | 1.6 s | 55 | Yes | 60 s | Contextual | Blend | Blend |
 | TearPage | Tears out the page, crumples it and tosses it away. | Note abandoned / cleared | Notes | One-shot | 1.7 s | 60 | No | — | Contextual | Blend | Blend |
+| ShowItem | Holds up one of its things and shows it to you. | Found / unlocked an item, about to use it | Progression / intent | One-shot | 1.3 s | 35 | Yes | — | Contextual | Blend | Blend |
+| FanSelf | Sits and fans itself (and the hot computer) with a paper fan. | CPU/GPU busy for a while | Perception: PC load | Loop | loop | 25 | Yes | — | Contextual | Sit + fetch fan | Put the fan away |
+| SipMug | Sips from a warm mug, looking over at you. | You've worked a long time without a break | Perception: work session | Loop | loop | 25 | Yes | — | Contextual | Fetch mug | Wave |
+| PlayBall | Kicks its ball about and chases it. | Bored and playful | Intent: play | Loop | loop | 20 | Yes | — | Contextual | Fetch ball | Pick it up |
 
 ## Environment
 

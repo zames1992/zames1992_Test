@@ -58,7 +58,9 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 * **Timer** — 5 / 15 / 25 / 45 min or custom. Hoodie watches the clock and hops when it's done.
 * **PC Status** — Hoodie sits down with its laptop and types while you look at CPU, memory, disk and network bars with
   60-second graphs, uptime and Hoodie's own CPU/RAM, sampled locally once per second. Under sustained heavy load Hoodie may fan itself (at most once per 10 minutes) — it never nags.
-* **Presence** chips and **Ask Hoodie** commands (see below), **Settings**.
+* **Memories** — how long you've been together, Hoodie's things, its wardrobe (colours it has found) and a journal of
+  moments ("rode a window while you dragged it", "found a mug in its backpack").
+* **Presence** chips and **Ask Hoodie** commands (see below); **Settings** is the gear in the header.
 
 ## Presence modes (you decide; Hoodie never guesses your mood)
 
@@ -83,7 +85,20 @@ a rushing pointer, reaches for a hovering one, hauls a crate while your CPU is b
 something downloads, facepalms at an error, checks its wrist on the hour and shivers late at night.
 When you are away it relaxes (5 min), gets bored (15), explores the desktop (30), gets sleepy (60) and finally lies down
 to sleep at Home (90). When you come back it wakes up, notices your pointer and greets you.
-Details: PLAN.md (behaviour architecture) and ANIMATION_CATALOG.md (128 clips in 19 states).
+Details: PLAN.md (behaviour architecture) and ANIMATION_CATALOG.md (132 clips in 19 states).
+
+### v1.3: it lives here now
+
+Hoodie notices what happens on your PC (which app is in front, a new window, that you're typing, how hard the PC is
+working, the time of day) and reacts in ways you can connect to it: while you type it quietly moves off your work; a
+new window makes it look over (a curious Hoodie walks up to it); when the PC runs hot it takes a little fan out of its
+backpack; after a long session, when you pause, it walks over with a mug and suggests a break; the window it stands on
+can take it for a ride. It often chooses to do nothing at all. Every Hoodie has its own character (curious, lazy,
+bold, cautious…), remembers favourite spots, gets used to things that happen a lot, and over days finds new things:
+a mug, a ball, a fan, a blanket, new moves and new hoodie colours. **Memories** in the panel shows the moments you
+shared and its wardrobe. Nothing to grind, no dailies, nothing lost by being away.
+
+![Fan on a hot PC, ball, Memories page](docs/qa/v13-living.png)
 
 ![Grab anywhere, ledge, sleeping](docs/qa/v12-physical.png)
 
@@ -104,16 +119,21 @@ Details: PLAN.md (behaviour architecture) and ANIMATION_CATALOG.md (128 clips in
 
 ## Settings
 
-Companion size and walking speed · autonomous behavior · default presence mode · cursor reactions · grab/throw ·
-**Reduced motion** (no big jumps or squash; gentle transitions) · always on top · Home / monitor rules / restricted areas ·
-app rules · PC-load reactions · sounds (soft, only for items, reminders and timers) · start with Windows · data location.
+Simple on the outside: size, walking speed, autonomy, default mode, grab/throw, **Reduced motion**, sounds, start with
+Windows, language. Deeper, in collapsed groups: **Territory and apps** (Home, monitor rules, drawn areas, app rules),
+**Privacy and data** (what Hoodie notices and why, what it remembers, what it never reads; switches for app learning
+and typing detection; *Forget everything Hoodie learned*), **Advanced** (cursor reactions, PC-load reactions, climbing
+windows, always on top, desktop menu) and **Performance and debug** (what Hoodie is thinking and why, its traits, its
+own CPU / RAM / handles / GDI / USER objects, current and peak).
 
 ![Settings](docs/qa/settings.png)
 
 ## Local data
 
 Everything is stored locally in **`%LocalAppData%\HoodieCompanion\`**:
-`settings.json`, `territory.json`, `inventory.json`, `notes.json`, `reminders.json`, `timers.json`, `icons\`, `logs\`.
+`settings.json`, `territory.json`, `inventory.json`, `notes.json`, `reminders.json`, `timers.json`, `memory.json`, `icons\`, `logs\`.
+`memory.json` holds only safe facts (time together, app *names* and minutes, favourite spots, counts, moments, found
+things). Hoodie never stores typed text, passwords, window titles, documents or messages, and takes no screenshots.
 Writes are atomic with a `.bak` copy and a `schemaVersion`. Nothing is ever sent anywhere: no cloud, no analytics,
 no AI backend. `--data <folder>` uses a different data folder.
 

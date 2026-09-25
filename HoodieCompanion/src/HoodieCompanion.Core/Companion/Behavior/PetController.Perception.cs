@@ -49,6 +49,7 @@ public sealed partial class PetController
     private void UpdatePerception(in PetInput input, double dt)
     {
         var env = input.Env;
+        if (!Settings.NoticeTyping) env.KeyboardInput = false;
         env.UserIdleSeconds = input.UserIdleSeconds;
         if (input.LocalHour is int h) env.Hour = h;
         Perception.Update(dt, env);
@@ -57,7 +58,7 @@ public sealed partial class PetController
         // Memory: time together, favourite apps, favourite places.
         var active = input.UserIdleSeconds < 120;
         Memory.TickTogether(dt, DateTime.Now, active);
-        if (active && Perception.ForegroundProcess is { } fg) Memory.AppForeground(fg, dt);
+        if (active && Settings.LearnFromApps && Perception.ForegroundProcess is { } fg) Memory.AppForeground(fg, dt);
         _memoryTick += dt;
         if (_memoryTick >= 5)
         {
@@ -376,6 +377,9 @@ public sealed partial class PetController
         }
         return false;
     }
+
+    /// <summary>QA/tests: carry out an intent-level activity right now.</summary>
+    public bool DebugIntent(Activity act) => DoIntent(act);
 
     private double IntentsDelay() => Intents.NextDecisionDelay(EffectiveMode, Perception.UserBusy);
 

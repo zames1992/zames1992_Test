@@ -115,3 +115,57 @@ drawn (`PosedRig`), so a sitting or sleeping Hoodie can be picked up by a hand o
 maximised/cloaked/tool windows skipped) and desktop icon tops (desktop `IFolderView`). Hoodie jumps onto low ones, props a
 ladder for high ones, sits on their edge, rides a moving window, hops down when the pointer approaches a title bar, and
 falls when the platform disappears. It can also climb the side of a screen that has no neighbour and slide back down.
+
+## Living character architecture (v1.3)
+
+Hoodie is a small autonomous creature, not a widget. Everything it does goes through one pipeline; none of it is shown
+as UI.
+
+```
+ PC / user / environment ──► Perception ──► Mind + Personality + Memory ──► Intent ──► Action ──► Animation
+ (window events, idle time,   (percepts)     (inner state, stable traits,    (scored     (walk,      (clips, props,
+  typing yes/no, CPU/GPU,                     habituation, favourite         options     climb,      reactions)
+  network, clock, monitors)                   places, moments)               + reason)   use item)       │
+        ▲                                                                                              │
+        └──────────────────────── reaction changes the inner state and memory ◄───────────────────────┘
+```
+
+* **Perception** (`Companion/Perception`). The host feeds a per-frame `EnvironmentSample` (input idle time, whether a
+  key was pressed, foreground process name / bounds / fullscreen, CPU, GPU, network, hour) and event-driven window
+  events from a `SetWinEventHook` (`Platform/WindowEvents.cs`: opened, closed, minimised, drag start/end, foreground).
+  `PerceptionSystem` turns them into percepts: *window opened/closed/dragged, app switched, app seen for the first time,
+  typing started/stopped, long work session (55 min without a 5 min break), user away/returned, PC hot/cooled (≥85 %
+  load for 20 s), download running, game started/ended, night fell*. It never reads key values, titles or contents.
+  "Typing" is inferred from input activity while the pointer is still. GPU load is the 3D engine share from the
+  `GPU Engine` performance counters.
+* **Mind and Personality.** `Mind` is the drifting inner state (v1.2). `Personality` holds seven stable traits
+  (curiosity, energy, confidence, playfulness, attachment, comfort, caution), seeded once per install and shaped
+  slowly by memory (time together grows attachment, scares grow caution, climbs grow confidence). One trait nudges
+  many options: curiosity makes exploring, peeking, climbing and investigating all more likely.
+* **Memory** (`Companion/Memory/CompanionMemory.cs`, `memory.json`). Bounded, local, safe facts: days and minutes
+  together, active hours, app names with category and minutes in front, favourite resting spots, event counts (for
+  habituation: `1 − e^(−n/6)`), interactions, memorable moments, found items and colours. Never typed text, titles,
+  documents or messages. Saved at most once a minute. Settings → Privacy can switch app learning and typing
+  detection off, and forget everything.
+* **Intent** (`Behavior/IntentSystem.cs`). Each decision scores all options (classic activities plus *do nothing*,
+  investigate a new window, cool down with the fan, suggest a break, work alongside, go to a favourite spot, play ball,
+  watch the user) and keeps a human-readable reason ("the computer is hot, fetch the fan", "you're busy, so it keeps
+  quiet"). A busy user (typing in the last 12 s) makes loud options ×0.2 and doing nothing +3; gaming and night calm
+  things down further. The pick is weighted by score², so strong preferences win without becoming clockwork.
+* **Being considerate** (priority 1). While you type, Hoodie walks off the active (non-maximised) window or steps
+  aside from the pointer, at most every 20 s. Expressive contextual reactions are rationed: one per 90 s (240 s while
+  you are busy); micro-reactions are exempt. The user's territory and modes always win over autonomy.
+* **Contextual moments.** Rare and memorable: a new window nearby → Hoodie looks, and a curious one walks over to look
+  up at it; the window it stands on is dragged → it balances and remembers the ride; the window under it closes → it
+  falls and is scared (later only annoyed); the PC runs hot → it takes the fan out of its backpack and fans itself;
+  after a long session, when you pause, it walks up with its mug and suggests a break; the first activity of a new
+  day gets a greeting; games make it sit and watch.
+* **Items and passive progression** (`Progression.cs`). Mug, ball, fan and blanket, a spin, a dance, wall climbing,
+  and four hoodie colours unlock from hours spent together *and* number of different days (never streaks, never
+  lost). Hoodie "finds" a new item at a calm moment: opens the backpack, rummages, shows it to you. Items are rig
+  groups (`fan`, `mug`, `ball`, `blanket`) drawn in the hand or on the floor.
+* **Performance budget.** Window changes are event-driven (the scanner rescans on events, 120 ms while a window is
+  dragged, 1.5–3 s otherwise, and rests while Hoodie sleeps). Perception and memory run on wall time, so a slow frame
+  loop never loses time together. `PerformanceWatch` samples CPU, working set, managed heap, handles, GDI and USER
+  objects once a minute, logs every 10 minutes and warns on growth; a 12-hour simulated soak test checks bounds and
+  memory growth.

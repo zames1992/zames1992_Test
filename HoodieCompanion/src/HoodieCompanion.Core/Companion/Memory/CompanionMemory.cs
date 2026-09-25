@@ -231,6 +231,32 @@ public sealed class CompanionMemory
 
     public void MarkDirty() => _dirty = true;
 
+    /// <summary>
+    /// Forgets everything Hoodie learned (apps, places, moments, counts, time together, found things).
+    /// Its personality and chosen colour stay, so it is still the same Hoodie.
+    /// </summary>
+    public void Forget()
+    {
+        var seed = Doc.PersonalitySeed;
+        var color = Doc.HoodieColor;
+        Doc.FirstMet = DateTime.Now;
+        Doc.DaysTogether.Clear();
+        Doc.MinutesTogether = 0;
+        Doc.Places.Clear();
+        Doc.Apps.Clear();
+        Doc.EventCounts.Clear();
+        Doc.ActiveMinutesByHour = new double[24];
+        Doc.Interactions.Clear();
+        Doc.Moments.Clear();
+        Doc.Unlocked.Clear();
+        Doc.Items.Clear();
+        Doc.LostItems.Clear();
+        Doc.PersonalitySeed = seed;
+        Doc.HoodieColor = color == "charcoal" ? color : "charcoal";
+        _dirty = true;
+        Flush(force: true);
+    }
+
     private double _savedMinutes = -1;
 
     /// <summary>Saves at most once a minute when something changed (or immediately when forced).</summary>

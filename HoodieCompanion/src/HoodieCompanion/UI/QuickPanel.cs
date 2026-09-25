@@ -11,6 +11,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using HoodieCompanion.Companion.Animation;
 using HoodieCompanion.Companion.Behavior;
+using HoodieCompanion.Companion.Memory;
 using HoodieCompanion.Features.Backpack;
 using HoodieCompanion.Features.Notes;
 using HoodieCompanion.Features.Reminders;
@@ -31,6 +32,7 @@ public enum PanelPage
     Timer,
     PcStatus,
     Commands,
+    Memories,
 }
 
 /// <summary>
@@ -237,6 +239,7 @@ public sealed class QuickPanel : Window
             PanelPage.Timer => TimerPage(),
             PanelPage.PcStatus => PcStatusPage(),
             PanelPage.Commands => CommandsPage(),
+            PanelPage.Memories => MemoriesPage(),
             _ => HomePage(),
         };
     }
@@ -277,12 +280,17 @@ public sealed class QuickPanel : Window
         return tb;
     }
 
-    private UIElement Frame(string title, UIElement content, bool back = true, UIElement? footer = null, Action? onBack = null)
+    private UIElement Frame(string title, UIElement content, bool back = true, UIElement? footer = null, Action? onBack = null, UIElement? extra = null)
     {
         var header = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 12) };
         var close = Ui.Button(Ui.Icon(Ui.Icons.Close, 14, "TextDim"), () => Close(true), "GhostButton", T("Close (Esc)"));
         DockPanel.SetDock(close, Dock.Right);
         header.Children.Add(close);
+        if (extra is not null)
+        {
+            DockPanel.SetDock(extra, Dock.Right);
+            header.Children.Add(extra);
+        }
         if (back)
         {
             var b = Ui.Button(Ui.Icon(Ui.Icons.Back, 14, "TextDim"), onBack ?? (() => Show(PanelPage.Home)), "GhostButton", T("Back"));
@@ -356,7 +364,7 @@ public sealed class QuickPanel : Window
             Tile(Ui.Icons.Bell, T("Reminder"), () => _host.Reminders.Pending().FirstOrDefault() is { } r ? r.DueAt.ToString("HH:mm") : "—", () => Show(PanelPage.Reminder)),
             Tile(Ui.Icons.Timer, T("Timer"), () => _host.Timers.Active.FirstOrDefault() is { } timer ? TimerService.FormatRemaining(timer.Remaining(DateTime.Now)) : "—", () => Show(PanelPage.Timer)),
             Tile(Ui.Icons.Pc, T("PC Status"), () => _host.LatestStatus is { } status ? $"CPU {status.CpuUsage:0}%" : "…", () => Show(PanelPage.PcStatus)),
-            Tile(Ui.Icons.Gear, T("Settings"), () => "", () => { Close(false); _host.ShowSettings(); }));
+            Tile(Ui.Icons.Heart, T("Memories"), () => _host.Memory.DaysTogether <= 1 ? T("just met") : F("{0} days", _host.Memory.DaysTogether), () => Show(PanelPage.Memories)));
 
         var chips = new WrapPanel();
         foreach (var (mode, tip) in new[]
@@ -387,7 +395,8 @@ public sealed class QuickPanel : Window
             Cmd(T("Leave me alone"), () => { _host.Command(PetCommand.LeaveMeAlone); Close(true); }));
 
         var content = Ui.Stack(Orientation.Vertical, 10, sub, tiles, Ui.Caption(T("Presence")), chips, Ui.Caption(T("Ask Hoodie")), cmds);
-        return Frame("Hoodie", Ui.Scroll(content), back: false);
+        var gear = Ui.Button(Ui.Icon(Ui.Icons.Gear, 14, "TextDim"), () => { Close(false); _host.ShowSettings(); }, "GhostButton", T("Settings"));
+        return Frame("Hoodie", Ui.Scroll(content), back: false, extra: gear);
     }
 
     private Button Tile(string icon, string label, Func<string> value, Action click)
@@ -425,6 +434,181 @@ public sealed class QuickPanel : Window
         var b = Ui.Button(label, click);
         b.Margin = new Thickness(0, 0, 6, 6);
         return b;
+    }
+
+    // ------------------------------------------------------------------ Memories (journal + wardrobe)
+
+    private UIElement MemoriesPage()
+    {
+        var mem = _host.Memory;
+        var sp = new StackPanel();
+
+        var days = mem.DaysTogether;
+        var hours = mem.HoursTogether;
+        var together = Ui.Text(days <= 1 && hours < 1 ? T("You two have only just met.")
+            : F("Together for {0} days · {1}", Math.Max(1, days), hours < 1 ? F("{0} min", (int)(hours * 60)) : F("{0:0.#} h", hours)), 14, weight: FontWeights.SemiBold);
+        sp.Children.Add(together);
+        var since = Ui.Text(F("First met {0}", mem.Doc.FirstMet.ToString("d MMMM yyyy", L.Culture)), 12, dim: true);
+        since.Margin = new Thickness(0, 2, 0, 0);
+        sp.Children.Add(since);
+
+        // Hoodie's own things.
+        sp.Children.Add(Spaced(Ui.Caption(T("Hoodie's things"))));
+        var things = new WrapPanel();
+        foreach (var id in new[] { "mug", "ball", "fan", "blanket" })
+        {
+            var has = mem.HasItem(id);
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 0, 6, 6),
+                Background = Ui.Brush(has ? "SurfaceHi" : "Surface"),
+                Child = Ui.Text(has ? ItemName(id) : "?", 12, dim: !has),
+                ToolTip = has ? ItemHint(id) : T("Not found yet. Hoodie finds new things now and then."),
+            };
+            things.Children.Add(chip);
+        }
+        sp.Children.Add(things);
+
+        // Wardrobe: only colours Hoodie has found; the rest are shown as locked swatches.
+        sp.Children.Add(Spaced(Ui.Caption(T("Wardrobe"))));
+        var swatches = new WrapPanel();
+        foreach (var c in Progression.Colors)
+        {
+            var color = c;
+            var ok = Progression.ColorAvailable(mem, color);
+            var current = mem.Doc.HoodieColor == color;
+            var dot = new Ellipse
+            {
+                Width = 26, Height = 26,
+                Fill = new SolidColorBrush(SwatchColor(color)) { Opacity = ok ? 1 : 0.25 },
+                Stroke = Ui.Brush(current ? "Accent" : "BorderBrush"),
+                StrokeThickness = current ? 2.5 : 1,
+            };
+            var b = Ui.Button(dot, () =>
+            {
+                if (!ok) return;
+                _host.SetHoodieColor(color);
+                Rebuild();
+            }, "GhostButton", ok ? HoodieColorName(color) : T("Not found yet"));
+            b.Margin = new Thickness(0, 0, 6, 0);
+            swatches.Children.Add(b);
+        }
+        sp.Children.Add(swatches);
+
+        // Things Hoodie knows about living here.
+        var facts = new List<string>();
+        if (mem.FavoriteApp() is { } fav && mem.Doc.Apps[fav].ForegroundMinutes > 30) facts.Add(F("You spend a lot of time in {0}.", fav));
+        var busiest = Enumerable.Range(0, 24).OrderByDescending(h => mem.Doc.ActiveMinutesByHour[h]).First();
+        if (mem.Doc.ActiveMinutesByHour[busiest] > 60) facts.Add(F("You're usually around at {0}:00.", busiest));
+        if (mem.FavoritePlace() is not null) facts.Add(T("It has a favourite spot on your screen."));
+        if (facts.Count > 0)
+        {
+            sp.Children.Add(Spaced(Ui.Caption(T("Hoodie has noticed"))));
+            foreach (var f in facts) sp.Children.Add(Ui.Text("· " + f, 12.5));
+        }
+
+        // The journal: memorable moments, newest first.
+        sp.Children.Add(Spaced(Ui.Caption(T("Moments"))));
+        var moments = mem.Doc.Moments.Where(m => MomentText(m) is not null).OrderByDescending(m => m.At).Take(60).ToList();
+        if (moments.Count == 0) sp.Children.Add(Ui.Text(T("Nothing yet. Moments appear here as they happen."), 12.5, dim: true));
+        foreach (var m in moments)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var date = Ui.Text(m.At.ToString("d MMM", L.Culture), 11.5, dim: true, wrap: TextWrapping.NoWrap);
+            date.Width = 54;
+            DockPanel.SetDock(date, Dock.Left);
+            row.Children.Add(date);
+            row.Children.Add(Ui.Text(MomentText(m)!, 12.5));
+            sp.Children.Add(row);
+        }
+
+        var foot = Ui.Text(T("Kept only on this PC. No text, titles or screen contents."), 11, dim: true);
+        foot.Margin = new Thickness(0, 8, 0, 0);
+        return Frame(T("Memories"), Ui.Scroll(sp), footer: foot);
+    }
+
+    private static UIElement Spaced(FrameworkElement e)
+    {
+        e.Margin = new Thickness(0, 14, 0, 6);
+        return e;
+    }
+
+    private static string ItemName(string id) => id switch
+    {
+        "mug" => T("Mug"),
+        "ball" => T("Ball"),
+        "fan" => T("Hand fan"),
+        "blanket" => T("Blanket"),
+        _ => id,
+    };
+
+    private static string ItemHint(string id) => id switch
+    {
+        "mug" => T("For tea breaks. Hoodie may suggest one after a long session."),
+        "ball" => T("For when Hoodie is bored."),
+        "fan" => T("Hoodie fans itself when the PC gets hot."),
+        "blanket" => T("For long naps."),
+        _ => "",
+    };
+
+    private static string HoodieColorName(string c) => c switch
+    {
+        "navy" => T("Navy"),
+        "forest" => T("Forest"),
+        "maroon" => T("Maroon"),
+        "sand" => T("Sand"),
+        _ => T("Charcoal"),
+    };
+
+    private static Color SwatchColor(string c) => c switch
+    {
+        "navy" => Color.FromRgb(0x2A, 0x3A, 0x5E),
+        "forest" => Color.FromRgb(0x2F, 0x4A, 0x36),
+        "maroon" => Color.FromRgb(0x5E, 0x28, 0x30),
+        "sand" => Color.FromRgb(0xB8, 0xA3, 0x7E),
+        _ => Color.FromRgb(0x34, 0x36, 0x3E),
+    };
+
+    /// <summary>The journal line for a moment, or null for internal ones.</summary>
+    private static string? MomentText(MomentMemory m)
+    {
+        if (m.Key.StartsWith("unlock:", StringComparison.Ordinal))
+        {
+            var id = m.Key[7..];
+            if (id is "mug" or "ball" or "fan" or "blanket") return F("Found a {0} in its backpack.", ItemName(id).ToLower(L.Culture));
+            if (id.StartsWith("color-", StringComparison.Ordinal)) return F("Found a {0} hoodie.", HoodieColorName(id[6..]).ToLower(L.Culture));
+            return id switch
+            {
+                "spin" => T("Learned to spin."),
+                "dance" => T("Learned a little dance."),
+                "climb-wall" => T("Worked up the courage to climb walls."),
+                _ => null,
+            };
+        }
+        if (m.Key.StartsWith("first-app:", StringComparison.Ordinal))
+            return m.Detail is { } app ? F("Saw {0} for the first time.", app) : null;
+        return m.Key switch
+        {
+            "first-new-app" => T("Noticed a new app on your PC."),
+            "first-window-top" => T("Climbed onto a window for the first time."),
+            "first-wall-climb" => T("Climbed a wall."),
+            "rode-window" => T("Rode a window while you dragged it."),
+            "window-closed-under-me" => T("A window vanished from under its feet. Scary!"),
+            "first-grab" => T("You picked Hoodie up for the first time."),
+            "first-big-throw" => T("You threw Hoodie across the screen."),
+            "first-gift" => T("You gave Hoodie something to keep."),
+            "first-welcome-back" => T("Welcomed you back."),
+            "first-fan" => T("Fanned itself while your PC was working hard."),
+            "first-break-hint" => T("Suggested a tea break after a long session."),
+            "first-ball-game" => T("Played with its ball."),
+            "first-blanket-nap" => T("Napped under its blanket."),
+            "favourite-spot" => T("Picked a favourite spot."),
+            "investigated-window" => T("Went to look at a new window."),
+            "first-game" => T("Watched you play a game."),
+            _ => null,
+        };
     }
 
     // ------------------------------------------------------------------ Backpack (inventory grid)

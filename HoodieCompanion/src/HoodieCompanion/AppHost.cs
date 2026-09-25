@@ -92,6 +92,9 @@ public sealed class AppHost : IDisposable
     public TerritoryService Territory { get; }
     public PetController Pet { get; }
     public CompanionMemory Memory { get; }
+
+    /// <summary>Hoodie's own resource use over time (debug page and log).</summary>
+    public PerformanceWatch Performance { get; } = new();
     public InventoryService Inventory { get; }
     public NoteService Notes { get; }
     public ReminderService Reminders { get; }
@@ -330,6 +333,7 @@ public sealed class AppHost : IDisposable
             if (_housekeepingTicks % 30 == 0) RememberPosition();
             if (_housekeepingTicks == 20) _ = Apps.LoadAsync();
             if (_housekeepingTicks == 6) PrewarmSettings();
+            if (_housekeepingTicks % 60 == 5) Performance.Take();
         }
         catch (Exception ex)
         {
@@ -601,6 +605,23 @@ public sealed class AppHost : IDisposable
     }
 
     // ---------------- windows
+
+    /// <summary>Changes Hoodie's hoodie (only colours it has found).</summary>
+    public void SetHoodieColor(string color)
+    {
+        if (!Progression.ColorAvailable(Memory, color)) return;
+        Memory.Doc.HoodieColor = color;
+        Memory.MarkDirty();
+        _petWindow?.Rig.SetHoodieColor(color);
+        Pet.PlayEmote(AnimClip.InspectSelf);
+    }
+
+    /// <summary>Privacy: forget everything Hoodie learned about this PC.</summary>
+    public void ForgetMemories()
+    {
+        Memory.Forget();
+        _petWindow?.Rig.SetHoodieColor(Memory.Doc.HoodieColor);
+    }
 
     public void ShowSettings()
     {

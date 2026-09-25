@@ -55,6 +55,12 @@ public sealed class AppSettings
     public bool DesktopMenu { get; set; } = true;
     /// <summary>Hoodie may jump or climb onto window tops and desktop icons.</summary>
     public bool ClimbOnWindows { get; set; } = true;
+
+    /// <summary>Hoodie may remember which apps you use (process names and minutes only) and react to new ones.</summary>
+    public bool LearnFromApps { get; set; } = true;
+
+    /// <summary>Hoodie may notice typing (only that keys are pressed, never which) to stay out of the way.</summary>
+    public bool NoticeTyping { get; set; } = true;
     public bool FirstRunDone { get; set; }
 
     public SavedPosition? LastPosition { get; set; }

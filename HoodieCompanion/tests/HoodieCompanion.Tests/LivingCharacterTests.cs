@@ -295,6 +295,33 @@ public sealed class LivingCharacterTests : IDisposable
         Assert.DoesNotContain(AnimClip.Dance, clips);
     }
 
+    [Fact]
+    public void PrivacyChoices_AreRespected_AndForgetClearsWhatWasLearned()
+    {
+        var mem = new CompanionMemory(new AppStorage(Path.Combine(_dir, "privacy")));
+        var sim = new Sim(TestWorlds.Single(), seed: 14, memory: mem);
+        sim.Settings.LearnFromApps = false;
+        sim.Settings.NoticeTyping = false;
+        sim.Env.ForegroundProcess = "telegram";
+        sim.Run(5, typing: true);
+        Assert.Empty(mem.Doc.Apps);
+        Assert.False(sim.Pet.Perception.Typing);
+
+        sim.Settings.LearnFromApps = true;
+        sim.Pet.Perception.OnWindowEvent(new WindowEvent(WindowEventKind.Opened, "code", new RectD(100, 100, 600, 400)));
+        sim.Run(1);
+        Assert.Contains("code", mem.Doc.Apps.Keys);
+        mem.GiveItem("mug");
+        var seed = mem.Doc.PersonalitySeed;
+        mem.Forget();
+        Assert.Empty(mem.Doc.Apps);
+        Assert.Empty(mem.Doc.Moments);
+        Assert.False(mem.HasItem("mug"));
+        Assert.Equal(seed, mem.Doc.PersonalitySeed);
+        var saved = File.ReadAllText(Path.Combine(_dir, "privacy", CompanionMemory.FileName));
+        Assert.DoesNotContain("code", saved);
+    }
+
     // ------------------------------------------------------------------ long runs
 
     [Fact]

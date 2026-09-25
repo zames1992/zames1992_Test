@@ -47,6 +47,14 @@
   side of the screen, livelier ladder and rope (overshoot, wobble, sway). Grab detection follows the drawn pose.
   60 tests; QA scenario 34/34 PASS under Wine (3 consecutive runs).
 
+- v1.3, the living character: Perception → Mind/Personality/Memory → Intent → Action pipeline (see PLAN.md). Event-driven
+  window perception (WinEventHook), inferred typing, GPU load, long-session / away / night / game percepts; intents with
+  reasons and a real "do nothing"; considerate behaviour while the user types; expressive-reaction budget; seven stable
+  personality traits; bounded local memory (apps by name, places, counts, moments) with habituation; world items (fan,
+  mug, ball, blanket) with new clips; passive progression by hours and days together; hoodie colours; Memories page;
+  simplified Settings with Privacy and Performance/debug groups; performance watch. 79 tests (incl. a 12 h simulated
+  soak); QA scenario 44/44 PASS under Wine.
+
 ## FAILED (and what replaced it)
 
 - Building with the WindowsDesktop SDK on Linux: not shipped in the Ubuntu SDK → switched to a plain
@@ -58,7 +66,8 @@
 
 ## NEXT
 
-- Measure idle CPU/RAM on a desktop PC with a GPU (CI VM is GPU-less).
+- Measure idle CPU/RAM on a desktop PC with a GPU (CI VM is GPU-less), and a real 8–12 h run (see `perf` log lines).
+- Next layers after v1.3, in order: deeper progression → inventory → collection → customization; lost-and-found items.
 - Elbow joints for nicer arm poses.
 
 ## BLOCKER

@@ -80,3 +80,11 @@ measurements; its silhouette overlaps the reference silhouette with **IoU ≈ 0.
 Quiet, observant, curious, slightly lazy, helpful, subtly playful, independent. Entertains itself; never begs for
 attention, never punishes absence, has no hunger or happiness meters. Internal drives (energy, curiosity,
 playfulness, social interest, comfort) only vary its behavior and are never shown.
+
+## Hoodie's things and wardrobe (v1.3)
+
+* **Items** are part of Hoodie's world, not UI: a pale **mug** (left hand, stays level while the arm moves), a small
+  folding **hand fan** (right hand), an orange **ball** (on the floor, lifted to show), and a knitted **blanket** in
+  the accent colour over the body when it naps. They come out of the backpack and go back in.
+* **Hoodie colours**: charcoal (original), navy, forest, maroon, sand. Only the hoodie fabric changes (hood, torso,
+  sleeves, pocket); face, shoes, strings and outline stay, so the silhouette and identity hold in every colour.

@@ -5,8 +5,8 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 ## Verification
 
 * **Built and tested without a physical Windows PC.** The release executable was cross-built with the .NET 8 SDK
-  and exercised end-to-end under Wine (automated QA scenario: 16/16 checks passed, see
-  `docs/qa/qa-report-wine.txt`), plus 38 unit/simulation tests of the platform-independent core.
+  and exercised end-to-end under Wine (automated QA scenario: 44/44 checks passed in v1.3, see
+  `docs/qa/qa-report-wine.txt`), plus 79 unit/simulation tests of the platform-independent core.
   The GitHub Actions workflow `.github/workflows/hoodie-companion.yml` runs the same clean build, the unit tests,
   the automated QA scenario and a single-instance check on a real `windows-latest` machine — first run on
   Windows 10.0.26100: **16/16 QA checks PASS, single instance OK**, simulation 0.085 ms/frame, calm CPU 5.5 % of all
@@ -25,7 +25,8 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   visible part of a window's top edge (not on maximised windows) or on a desktop icon, rides along when the window moves
   and falls when it closes. Icon positions come from the desktop's shell view; with "Show desktop icons" off, or a
   third-party desktop replacement, icons are simply not used. Turn it off in Settings if you prefer.
-* **GPU usage is not measured** (no reliable dependency-free source) and temperatures are out of scope.
+* **GPU usage** is the 3D engine share from the `GPU Engine` performance counters (Windows 10 1709+); where the
+  counters are missing it is simply unknown. Temperatures are out of scope.
   Disk activity uses the `PhysicalDisk` performance counter and shows "—" where counters are unavailable.
 * **Obstruction avoidance is heuristic**: Hoodie steps aside when the pointer rests on it or when you click right
   next to it twice; it does not detect menus, dialogs or text carets under it.
@@ -72,6 +73,19 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   values refresh, and no live part is rebuilt while a mouse button is held over it.
 * The settings window took a moment to open: it is now prepared in the background after start and reused; the app is
   published with precompiled (ReadyToRun) code so windows and menus open without JIT pauses.
+
+## Living character (v1.3)
+
+* **Typing is inferred**, not read: input activity while the pointer is still. Scrolling with a still pointer or a game
+  pad can look like typing (Hoodie just stays calmer). It can be switched off in Settings → Privacy.
+* **App categories** come from a built-in list of well-known process names (browsers, editors, office, chat, media,
+  creative tools, terminals, games); unknown apps in fullscreen count as games. Everything else is "unknown".
+* **Window events** use `SetWinEventHook` (out of context). Some elevated or UWP windows may not report every event;
+  the periodic rescan still catches them within a few seconds.
+* The **12-hour soak** is simulated (core logic in accelerated time plus the host's performance watch); an actual
+  8–12 h run on real hardware is still to be done by the user. Look for `perf` lines in the log.
+* Lost-and-found items are modelled in memory but not used by behaviour yet.
+* Item props (fan, mug, ball, blanket) are simple vector shapes; the fan is held in the right hand only.
 
 ## Visual
 

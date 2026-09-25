@@ -158,8 +158,11 @@ public static class Ui
         public const string Timer = "M 12 21 C 16.4 21 20 17.4 20 13 C 20 8.6 16.4 5 12 5 C 7.6 5 4 8.6 4 13 C 4 17.4 7.6 21 12 21 Z M 12 9 L 12 13 L 15 15 M 10 2 L 14 2";
         public const string Pc = "M 3 5 L 21 5 L 21 16 L 3 16 Z M 9 20 L 15 20 M 12 16 L 12 20";
         public const string Gear = "M 12 15 C 13.7 15 15 13.7 15 12 C 15 10.3 13.7 9 12 9 C 10.3 9 9 10.3 9 12 C 9 13.7 10.3 15 12 15 Z M 12 2 L 12 5 M 12 19 L 12 22 M 2 12 L 5 12 M 19 12 L 22 12 M 4.9 4.9 L 7 7 M 17 17 L 19.1 19.1 M 4.9 19.1 L 7 17 M 17 7 L 19.1 4.9";
+        public const string Heart = "M 12 20 L 4.5 12.5 C 2.5 10.5 2.5 7.2 4.6 5.4 C 6.6 3.7 9.6 4 12 7 C 14.4 4 17.4 3.7 19.4 5.4 C 21.5 7.2 21.5 10.5 19.5 12.5 Z";
         public const string Home = "M 3 11 L 12 3 L 21 11 M 5 9 L 5 21 L 19 21 L 19 9";
         public const string Pin = "M 12 17 L 12 22 M 7 3 L 17 3 M 9 3 L 9 9 L 6 13 L 18 13 L 15 9 L 15 3";
+        public const string ChevronRight = "M 9 5 L 16 12 L 9 19";
+        public const string ChevronDown = "M 5 9 L 12 16 L 19 9";
         public const string Back = "M 15 5 L 8 12 L 15 19";
         public const string Close = "M 6 6 L 18 18 M 18 6 L 6 18";
         public const string Plus = "M 12 5 L 12 19 M 5 12 L 19 12";

@@ -27,6 +27,9 @@ public static partial class L
     }
 
     /// <summary>Translate.</summary>
+    /// <summary>Culture for dates in the current UI language.</summary>
+    public static CultureInfo Culture => Language == "ru" ? CultureInfo.GetCultureInfo("ru-RU") : CultureInfo.GetCultureInfo("en-GB");
+
     public static string T(string en) => Language == "ru" && Ru.TryGetValue(en, out var ru) ? ru : en;
 
     /// <summary>Translate a format string, then format.</summary>

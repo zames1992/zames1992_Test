@@ -10,6 +10,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using HoodieCompanion.Companion.Behavior;
+using HoodieCompanion.Companion.Memory;
+using HoodieCompanion.Companion.Perception;
 using HoodieCompanion.Companion.Physics;
 using HoodieCompanion.Geometry;
 using HoodieCompanion.Platform;
@@ -153,9 +155,17 @@ public sealed class QaRunner
             Check(saved.Contains("test.txt"), "Backpack persisted to inventory.json");
             _host.GiveItems(new[] { testFolder, "https://example.com" });
         });
-        At(13.0, "panel home", () => _host.OpenPanel(PanelPage.Home));
+        At(13.0, "panel home", () =>
+        {
+            // A few things Hoodie found and remembered, so the Memories page has content.
+            _host.Memory.GiveItem("mug");
+            _host.Memory.GiveItem("ball");
+            _host.Memory.Remember("unlock:mug");
+            _host.Memory.Remember("first-grab");
+            _host.OpenPanel(PanelPage.Home);
+        });
         At(13.6, "panel-snap", () => SnapWindow(_host.Panel, "08-panel-home"));
-        var pages = new[] { PanelPage.Backpack, PanelPage.Notes, PanelPage.Reminder, PanelPage.Timer, PanelPage.PcStatus, PanelPage.Commands };
+        var pages = new[] { PanelPage.Backpack, PanelPage.Notes, PanelPage.Reminder, PanelPage.Timer, PanelPage.PcStatus, PanelPage.Commands, PanelPage.Memories };
         for (var p = 0; p < pages.Length; p++)
         {
             var page = pages[p];
@@ -180,8 +190,8 @@ public sealed class QaRunner
             Check(_sawLaptop, "PC Status page: Hoodie sits down with its laptop");
             SnapPet("13b-laptop-pet");
         });
-        At(21.5, "close panel", () => _host.Panel.Close(animated: false));
-        At(22.0, "remove", () =>
+        At(22.0, "close panel", () => _host.Panel.Close(animated: false));
+        At(22.1, "remove", () =>
         {
             var item = _host.Inventory.Items.First(i => i.Target == testFile);
             _host.RemoveItem(item);
@@ -229,6 +239,16 @@ public sealed class QaRunner
             if (w is not null)
             {
                 SnapWindow(w, "20-settings");
+                w.Expand("privacy", "debug");
+                w.UpdateLayout();
+            }
+        });
+        At(58.0 - 0.3, "settings-privacy-snap", () =>
+        {
+            var w = Application.Current.Windows.OfType<SettingsWindow>().FirstOrDefault();
+            if (w is not null)
+            {
+                SnapWindow(w, "20b-settings-privacy");
                 w.Close();
             }
         });
@@ -393,7 +413,41 @@ public sealed class QaRunner
             SnapDesktop("30-screen-side");
         });
         At(122.0, "wall-done", () => Check(Math.Abs(pet.Feet.Y - prim.Bottom) < 1, "slides back down to the floor"));
-        At(122.5, "report", Finish);
+        // v1.3: the living character.
+        At(123.0, "v13-window", () =>
+        {
+            pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
+            pet.Perception.OnWindowEvent(new WindowEvent(WindowEventKind.Opened, "qa-new-app", new RectD(prim.Left + 100, prim.Top + 100, 600, 400)));
+        });
+        At(124.0, "v13-window-check", () =>
+        {
+            Check(_host.Memory.Doc.Apps.ContainsKey("qa-new-app") && _host.Memory.HasMoment("first-new-app"), "notices a new app (by name only) and remembers it");
+            _host.Memory.GiveItem("fan");
+            Check(pet.DebugIntent(HoodieCompanion.Companion.Behavior.Activity.CoolDown), "hot PC: Hoodie gets its fan out");
+        });
+        At(127.5, "v13-fan-snap", () =>
+        {
+            Check(_host.LastRender.Pose.PropFan > 0.5, $"the fan is in Hoodie's hand ({_host.LastRender.Clip})");
+            SnapPet("26-fan");
+            pet.Execute(PetCommand.Normal);
+        });
+        At(128.0, "v13-ball", () => Check(pet.DebugIntent(HoodieCompanion.Companion.Behavior.Activity.PlayBall), "plays with its ball"));
+        At(130.0, "v13-ball-snap", () =>
+        {
+            Check(_host.LastRender.Pose.PropBall > 0.5, "the ball is out");
+            SnapPet("27-ball");
+        });
+        At(131.0, "v13-memory", () =>
+        {
+            _host.SaveAll();
+            var path = _host.Storage.PathFor(CompanionMemory.FileName);
+            var json = File.Exists(path) ? File.ReadAllText(path) : "";
+            Check(json.Contains("qa-new-app") && json.Contains("first-new-app"), "memory saved locally to memory.json");
+            var sample = _host.Performance.Take();
+            Check(sample.Handles > 0 && sample.WorkingSet > 0, $"own footprint is measured ({PerformanceWatch.Describe(sample)})");
+            Check(pet.Mind.CurrentIntent is not null, $"decisions have reasons ({pet.Mind.CurrentIntent}: {pet.Mind.CurrentReason})");
+        });
+        At(131.5, "report", Finish);
 
         // Steps run in time order regardless of the order they were declared in.
         var ordered = _steps.Select((st, i) => (st, i)).OrderBy(x => x.st.At).ThenBy(x => x.i).Select(x => x.st).ToList();

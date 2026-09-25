@@ -110,7 +110,7 @@ public sealed partial class PetController
         var memory = new CompanionMemory(null);
         memory.Doc.PersonalitySeed = _rng.Next();
         Memory = memory;
-        Perception.IsNewApp = p => Memory.SeeApp(p, AppCategories.Of(p, false));
+        Perception.IsNewApp = p => Settings.LearnFromApps && Memory.SeeApp(p, AppCategories.Of(p, false));
         Reactions = new ReactionSystem(_rng);
         IdleDirector = new IdleDirector(_rng);
         IdleDirector.Allowed = c => c switch
