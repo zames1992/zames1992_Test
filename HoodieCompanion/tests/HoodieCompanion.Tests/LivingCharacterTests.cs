@@ -349,6 +349,19 @@ public sealed class LivingCharacterTests : IDisposable
         Assert.NotEqual("backpack", sim.Pet.ActivityName);
     }
 
+    [Fact]
+    public void OnAWindowTop_HoodieStaysAWhile_BeforeHoppingDown()
+    {
+        var brain = new BehaviorController(new Random(1));
+        var drives = new CharacterDrives();
+        DecisionContext Ctx(double seconds) => new(PresenceMode.Normal, drives, true, false, true, 5, false, false, false,
+            OnSurface: true, SurfaceSeconds: seconds);
+        Assert.False(brain.Weights(Ctx(0)).ContainsKey(Activity.HopDown));
+        Assert.False(brain.Weights(Ctx(15)).ContainsKey(Activity.HopDown));
+        var later = brain.Weights(Ctx(70));
+        Assert.True(later.TryGetValue(Activity.HopDown, out var w) && w > 1);
+    }
+
     // ------------------------------------------------------------------ long runs
 
     [Fact]

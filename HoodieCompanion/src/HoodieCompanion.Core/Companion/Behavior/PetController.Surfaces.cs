@@ -86,8 +86,11 @@ public sealed partial class PetController
         }
     }
 
+    private double _surfaceSince;
+
     private void StandOnSurface(Surface s)
     {
+        if (_onSurface != s.Id) _surfaceSince = _time;
         _onSurface = s.Id;
         _surfaceLeft = s.Left;
         Feet = new Vec2(Math.Clamp(Feet.X, s.Left + 2, s.Right - 2), s.Y);

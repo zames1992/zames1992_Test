@@ -68,7 +68,8 @@ public readonly record struct DecisionContext(
     double Sleepiness = 0,
     bool CanVisitSurface = false,
     bool OnSurface = false,
-    bool CanClimbWall = false);
+    bool CanClimbWall = false,
+    double SurfaceSeconds = 0);
 
 /// <summary>
 /// Weighted choice of the next autonomous activity. Presence mode shapes the weights; drives vary them.
@@ -161,11 +162,12 @@ public sealed class BehaviorController
         }
         if (c.OnSurface)
         {
-            // Up on a platform only a few things make sense; then hop down again.
+            // Up on a platform only a few things make sense; after a while (not right after arriving:
+            // climbing up just to leave looks random) it hops down again.
             var keep = new[] { Activity.SitEdge, Activity.LookAround, Activity.Wander, Activity.Stretch, Activity.Yawn, Activity.Sit, Activity.ReadBook };
             foreach (var k in w.Keys.ToList()) if (!keep.Contains(k)) w.Remove(k);
             Add(w, Activity.SitEdge, 1.5);
-            Add(w, Activity.HopDown, 1.2);
+            if (c.SurfaceSeconds >= 20) Add(w, Activity.HopDown, 0.3 + 0.9 * Math.Min(1, (c.SurfaceSeconds - 20) / 40) + c.Boredom * 0.5);
         }
         // Away-from-keyboard timeline biases (the user is not watching; Hoodie entertains itself).
         if (c.Mode is PresenceMode.Normal or PresenceMode.Company or PresenceMode.Play)

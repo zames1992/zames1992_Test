@@ -130,7 +130,8 @@ public sealed partial class PetController
             Mind.Sleepiness,
             _onSurface is null && _surfaces.Count > 0 && PickSurfaceToVisit() is not null,
             _onSurface is not null,
-            _onSurface is null && ClimbableWallSide() is not null);
+            _onSurface is null && ClimbableWallSide() is not null,
+            _onSurface is null ? 0 : _time - _surfaceSince);
 
         // Intent: a reason first, then the action.
         var intent = Intents.Choose(BuildIntentContext(ctx));
