@@ -641,6 +641,27 @@ public sealed class AppHost : IDisposable
         Pet.PlayEmote(AnimClip.InspectSelf);
     }
 
+    /// <summary>
+    /// Saves a postcard of a moment (only Hoodie is drawn) to Pictures\Hoodie and shows it in Explorer.
+    /// Returns the file path, or null when it could not be saved.
+    /// </summary>
+    public string? SavePostcard(MomentMemory moment, string caption, bool reveal = true)
+    {
+        try
+        {
+            var path = Postcard.Save(moment, caption, Memory);
+            Log.Info("postcard saved");
+            Pet.PlayEmote(AnimClip.Happy);
+            if (reveal) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
+            return path;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("postcard failed", ex);
+            return null;
+        }
+    }
+
     /// <summary>Privacy: forget everything Hoodie learned about this PC.</summary>
     public void ForgetMemories()
     {

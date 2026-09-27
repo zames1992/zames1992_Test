@@ -12,7 +12,7 @@ Hoodie Companion — «живой» компаньон для рабочего �
 ## Команды (Windows, из папки `HoodieCompanion`)
 
 ```powershell
-dotnet test tests\HoodieCompanion.Tests -c Release       # юнит- и симуляционные тесты (сейчас 81, все должны проходить)
+dotnet test tests\HoodieCompanion.Tests -c Release       # юнит- и симуляционные тесты (сейчас 83, все должны проходить)
 .\build-release.bat                                      # чистая сборка + тесты + publish\win-x64\HoodieCompanion.exe + zip
 dotnet run --project src\HoodieCompanion -c Release      # запуск из исходников
 publish\win-x64\HoodieCompanion.exe --qa qa --data qadata   # автоматический QA-сценарий (~2 мин) -> qa\qa-report.txt + скриншоты

@@ -59,7 +59,9 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 * **PC Status** — Hoodie sits down with its laptop and types while you look at CPU, memory, disk and network bars with
   60-second graphs, uptime and Hoodie's own CPU/RAM, sampled locally once per second. Under sustained heavy load Hoodie may fan itself (at most once per 10 minutes) — it never nags.
 * **Memories** — how long you've been together, Hoodie's things, its wardrobe (colours it has found) and a journal of
-  moments ("rode a window while you dragged it", "found a mug in its backpack").
+  moments ("rode a window while you dragged it", "found a mug in its backpack"). The picture button next to a moment
+  saves it as a **postcard** (Hoodie posed for the moment, with the line and the date) to `Pictures\Hoodie` — only
+  Hoodie is drawn, never your screen.
 * **Presence** chips and **Ask Hoodie** commands (see below); **Settings** is the gear in the header.
 
 ## Presence modes (you decide; Hoodie never guesses your mood)
@@ -95,7 +97,8 @@ new window makes it look over (a curious Hoodie walks up to it); when the PC run
 backpack; after a long session, when you pause, it walks over with a mug and suggests a break; the window it stands on
 can take it for a ride. It often chooses to do nothing at all. Every Hoodie has its own character (curious, lazy,
 bold, cautious…), remembers favourite spots, gets used to things that happen a lot, and over days finds new things:
-a mug, a ball, a fan, a blanket, new moves and new hoodie colours. **Memories** in the panel shows the moments you
+a mug, a ball, a fan, a blanket, new moves and new hoodie colours. Once in a long while it misplaces one of its
+things and, some time later, finds it again and shows you (time away never counts, nothing is ever lost for good). **Memories** in the panel shows the moments you
 shared and its wardrobe. Nothing to grind, no dailies, nothing lost by being away.
 
 ![Fan on a hot PC, ball, Memories page](docs/qa/v13-living.png)

@@ -362,6 +362,61 @@ public sealed class LivingCharacterTests : IDisposable
         Assert.True(later.TryGetValue(Activity.HopDown, out var w) && w > 1);
     }
 
+    [Fact]
+    public void LostAndFound_ThingsGoMissingRarely_AndTurnUpAgainAtACalmMoment()
+    {
+        var mem = new CompanionMemory(null);
+        foreach (var id in new[] { "mug", "ball", "fan" }) { mem.Unlock(id); mem.GiveItem(id); }
+        foreach (var u in Progression.Schedule) mem.Unlock(u.Id); // nothing new to announce
+        mem.Doc.MinutesTogether = 20 * 60;
+        var sim = new Sim(TestWorlds.Single(), seed: 16, memory: mem);
+        sim.Idle = 5;
+        // Eligible: within ~10 minutes something goes missing (and only one thing).
+        sim.Run(700);
+        Assert.Single(mem.Doc.LostItems);
+        var lost = mem.Doc.LostItems[0];
+        Assert.False(mem.HasItem(lost));
+
+        // Time away does not bring it back (and does not lose more): only time together counts.
+        sim.Idle = 4000;
+        sim.Run(120);
+        Assert.Single(mem.Doc.LostItems);
+
+        // After half an hour together it turns up again, shown at a calm moment.
+        sim.Idle = 5;
+        mem.Doc.MinutesTogether += MinutesUntilFoundForTest;
+        var shown = false;
+        sim.Run(30, r => shown |= r.Clip == AnimClip.ShowItem);
+        Assert.Empty(mem.Doc.LostItems);
+        Assert.True(mem.HasItem(lost));
+        Assert.True(mem.HasMoment("found-again:" + lost));
+        Assert.True(shown);
+
+        // Losses stay rare: nothing else goes missing right away.
+        sim.Run(700);
+        Assert.Empty(mem.Doc.LostItems);
+    }
+
+    private const double MinutesUntilFoundForTest = PetController.MinutesUntilFound + 1;
+
+    [Fact]
+    public void FoundThings_AreNotShownInQuietOrFocus_ButLaterWhenCalmIsAllowed()
+    {
+        var mem = new CompanionMemory(null);
+        mem.TickTogether(3600, DateTime.Now, true); // the mug is due
+        var sim = new Sim(TestWorlds.Single(), seed: 17, memory: mem);
+        sim.Idle = 5;
+        sim.Pet.SetMode(PresenceMode.Quiet);
+        var shownQuiet = false;
+        sim.Run(40, r => shownQuiet |= r.Clip == AnimClip.ShowItem);
+        Assert.True(mem.HasItem("mug"));   // unlocked quietly...
+        Assert.False(shownQuiet);          // ...but not shown while the user asked for calm
+        sim.Pet.SetMode(PresenceMode.Normal);
+        var shown = false;
+        sim.Run(40, r => shown |= r.Clip == AnimClip.ShowItem);
+        Assert.True(shown);
+    }
+
     // ------------------------------------------------------------------ long runs
 
     [Fact]

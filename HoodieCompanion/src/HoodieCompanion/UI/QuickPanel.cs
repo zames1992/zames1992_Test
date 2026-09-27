@@ -364,7 +364,7 @@ public sealed class QuickPanel : Window
             Tile(Ui.Icons.Bell, T("Reminder"), () => _host.Reminders.Pending().FirstOrDefault() is { } r ? r.DueAt.ToString("HH:mm") : "—", () => Show(PanelPage.Reminder)),
             Tile(Ui.Icons.Timer, T("Timer"), () => _host.Timers.Active.FirstOrDefault() is { } timer ? TimerService.FormatRemaining(timer.Remaining(DateTime.Now)) : "—", () => Show(PanelPage.Timer)),
             Tile(Ui.Icons.Pc, T("PC Status"), () => _host.LatestStatus is { } status ? $"CPU {status.CpuUsage:0}%" : "…", () => Show(PanelPage.PcStatus)),
-            Tile(Ui.Icons.Heart, T("Memories"), () => _host.Memory.DaysTogether <= 1 ? T("just met") : F("{0} days", _host.Memory.DaysTogether), () => Show(PanelPage.Memories)));
+            Tile(Ui.Icons.Heart, T("Memories"), () => _host.Memory.DaysTogether <= 1 ? T("just met") : DaysText(_host.Memory.DaysTogether), () => Show(PanelPage.Memories)));
 
         var chips = new WrapPanel();
         foreach (var (mode, tip) in new[]
@@ -446,7 +446,7 @@ public sealed class QuickPanel : Window
         var days = mem.DaysTogether;
         var hours = mem.HoursTogether;
         var together = Ui.Text(days <= 1 && hours < 1 ? T("You two have only just met.")
-            : F("Together for {0} days · {1}", Math.Max(1, days), hours < 1 ? F("{0} min", (int)(hours * 60)) : F("{0:0.#} h", hours)), 14, weight: FontWeights.SemiBold);
+            : F("Together for {0} · {1}", DaysText(Math.Max(1, days)), hours < 1 ? F("{0} min", (int)(hours * 60)) : F("{0:0.#} h", hours)), 14, weight: FontWeights.SemiBold);
         sp.Children.Add(together);
         var since = Ui.Text(F("First met {0}", mem.Doc.FirstMet.ToString("d MMMM yyyy", L.Culture)), 12, dim: true);
         since.Margin = new Thickness(0, 2, 0, 0);
@@ -458,14 +458,15 @@ public sealed class QuickPanel : Window
         foreach (var id in new[] { "mug", "ball", "fan", "blanket" })
         {
             var has = mem.HasItem(id);
+            var lost = mem.Doc.LostItems.Contains(id);
             var chip = new Border
             {
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(10, 5, 10, 5),
                 Margin = new Thickness(0, 0, 6, 6),
                 Background = Ui.Brush(has ? "SurfaceHi" : "Surface"),
-                Child = Ui.Text(has ? ItemName(id) : "?", 12, dim: !has),
-                ToolTip = has ? ItemHint(id) : T("Not found yet. Hoodie finds new things now and then."),
+                Child = Ui.Text(has ? ItemName(id) : lost ? F("{0} (misplaced)", ItemName(id)) : "?", 12, dim: !has),
+                ToolTip = has ? ItemHint(id) : lost ? T("Hoodie misplaced it somewhere. It will turn up again.") : T("Not found yet. Hoodie finds new things now and then."),
             };
             things.Children.Add(chip);
         }
@@ -516,6 +517,11 @@ public sealed class QuickPanel : Window
         foreach (var m in moments)
         {
             var row = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var moment = m;
+            var card = Ui.Button(Ui.Icon(Ui.Icons.Picture, 13, "TextDim"), () => _host.SavePostcard(moment, MomentText(moment)!), "GhostButton", T("Save as a postcard"));
+            card.Padding = new Thickness(4, 1, 4, 1);
+            DockPanel.SetDock(card, Dock.Right);
+            row.Children.Add(card);
             var date = Ui.Text(m.At.ToString("d MMM", L.Culture), 11.5, dim: true, wrap: TextWrapping.NoWrap);
             date.Width = 54;
             DockPanel.SetDock(date, Dock.Left);
@@ -528,6 +534,8 @@ public sealed class QuickPanel : Window
         foot.Margin = new Thickness(0, 8, 0, 0);
         return Frame(T("Memories"), Ui.Scroll(sp), footer: foot);
     }
+
+    private static string DaysText(int days) => days == 1 ? T("1 day") : F("{0} days", days);
 
     private static UIElement Spaced(FrameworkElement e)
     {
@@ -587,6 +595,8 @@ public sealed class QuickPanel : Window
                 _ => null,
             };
         }
+        if (m.Key.StartsWith("found-again:", StringComparison.Ordinal))
+            return F("Found its {0} again after misplacing it.", ItemName(m.Key[12..]).ToLower(L.Culture));
         if (m.Key.StartsWith("first-app:", StringComparison.Ordinal))
             return m.Detail is { } app ? F("Saw {0} for the first time.", app) : null;
         return m.Key switch

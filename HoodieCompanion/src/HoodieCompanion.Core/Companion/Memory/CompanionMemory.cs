@@ -46,6 +46,10 @@ public sealed class MemoryDocument
     public List<string> Items { get; set; } = new();
     /// <summary>Items Hoodie has misplaced for a while (it finds them again later).</summary>
     public List<string> LostItems { get; set; } = new();
+    /// <summary>When (in minutes together) each lost item went missing.</summary>
+    public Dictionary<string, double> LostSince { get; set; } = new();
+    /// <summary>Minutes together at the last time Hoodie misplaced something (losses stay rare).</summary>
+    public double LastLossMinutes { get; set; }
     public string HoodieColor { get; set; } = "charcoal";
     /// <summary>Stable personality seed, fixed on first run (so every Hoodie is a little different).</summary>
     public int PersonalitySeed { get; set; } = Random.Shared.Next();
@@ -72,6 +76,7 @@ public sealed class CompanionMemory
         Doc.Apps ??= new(StringComparer.OrdinalIgnoreCase);
         if (Doc.Apps.Comparer != StringComparer.OrdinalIgnoreCase) Doc.Apps = new(Doc.Apps, StringComparer.OrdinalIgnoreCase);
         Doc.ActiveMinutesByHour = Doc.ActiveMinutesByHour is { Length: 24 } a ? a : new double[24];
+        Doc.LostSince ??= new();
     }
 
     public MemoryDocument Doc { get; }
@@ -217,15 +222,23 @@ public sealed class CompanionMemory
 
     public void LoseItem(string id)
     {
-        if (Doc.Items.Contains(id) && !Doc.LostItems.Contains(id)) Doc.LostItems.Add(id);
+        if (!Doc.Items.Contains(id) || Doc.LostItems.Contains(id)) return;
+        Doc.LostItems.Add(id);
+        Doc.LostSince[id] = Doc.MinutesTogether;
+        Doc.LastLossMinutes = Doc.MinutesTogether;
         MarkDirty();
     }
 
     public void FindItem(string id)
     {
         Doc.LostItems.Remove(id);
+        Doc.LostSince.Remove(id);
         MarkDirty();
     }
+
+    /// <summary>Minutes together since the item went missing (0 when it is not lost).</summary>
+    public double LostForMinutes(string id) =>
+        Doc.LostItems.Contains(id) && Doc.LostSince.TryGetValue(id, out var at) ? Doc.MinutesTogether - at : 0;
 
     // ------------------------------------------------------------------ persistence
 
@@ -251,6 +264,8 @@ public sealed class CompanionMemory
         Doc.Unlocked.Clear();
         Doc.Items.Clear();
         Doc.LostItems.Clear();
+        Doc.LostSince.Clear();
+        Doc.LastLossMinutes = 0;
         Doc.PersonalitySeed = seed;
         Doc.HoodieColor = color == "charcoal" ? color : "charcoal";
         _dirty = true;

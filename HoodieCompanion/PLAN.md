@@ -160,6 +160,9 @@ as UI.
   falls and is scared (later only annoyed); the PC runs hot → it takes the fan out of its backpack and fans itself;
   after a long session, when you pause, it walks up with its mug and suggests a break; the first activity of a new
   day gets a greeting; games make it sit and watch.
+* **Lost and found.** Once in ~18 h together Hoodie may misplace one of its things (never the one in use, always
+  keeping at least one); after 30 min together it notices it again at a calm moment and shows it. Moments can be saved
+  as postcards (`UI/Postcard.cs`): Hoodie in a matching pose, the journal line and the date, rendered offline.
 * **Items and passive progression** (`Progression.cs`). Mug, ball, fan and blanket, a spin, a dance, wall climbing,
   and four hoodie colours unlock from hours spent together *and* number of different days (never streaks, never
   lost). Hoodie "finds" a new item at a calm moment: opens the backpack, rummages, shows it to you. Items are rig

@@ -399,13 +399,75 @@ public sealed partial class PetController
             Log?.Invoke($"unlocked {u.Id}");
         }
         // Show a new item when nothing else is going on and the user is around but not busy.
-        if (_announce.Count > 0 && Machine.State is BehaviorState.Idle or BehaviorState.Sitting && !Perception.UserBusy && _userIdle < 60 && CanReact)
+        if (_announce.Count > 0 && CalmMoment())
         {
             var u = _announce.Dequeue();
-            var item = u.Id switch { "fan" => WorldItem.Fan, "mug" => WorldItem.Mug, "ball" => WorldItem.Ball, "blanket" => WorldItem.Blanket, _ => WorldItem.None };
             StartActivity("found", sitting: false, enter: new() { (AnimClip.OpenBackpack, 0.45), (AnimClip.SearchBackpack, 1.2) },
-                loop: AnimClip.ShowItem, exit: new() { (AnimClip.Happy, null), (AnimClip.CloseBackpack, null) }, loopSeconds: 1.8, item: item);
+                loop: AnimClip.ShowItem, exit: new() { (AnimClip.Happy, null), (AnimClip.CloseBackpack, null) }, loopSeconds: 1.8, item: ItemFor(u.Id));
+            return;
         }
+        CheckLostAndFound();
+    }
+
+    /// <summary>
+    /// Nothing else is going on, the user is around but not busy, and the presence mode allows little shows
+    /// (never in Focus or Quiet: the user asked for calm).
+    /// </summary>
+    private bool CalmMoment() =>
+        Machine.State is BehaviorState.Idle or BehaviorState.Sitting && _activity is null && !Perception.UserBusy && _userIdle < 60 && CanReact
+        && EffectiveMode is PresenceMode.Normal or PresenceMode.Company or PresenceMode.Play;
+
+    private static WorldItem ItemFor(string id) => id switch
+    {
+        "fan" => WorldItem.Fan,
+        "mug" => WorldItem.Mug,
+        "ball" => WorldItem.Ball,
+        "blanket" => WorldItem.Blanket,
+        _ => WorldItem.None,
+    };
+
+    // ------------------------------------------------------------------ lost and found
+
+    /// <summary>Minutes together between two losses: misplacing things stays a rare little story.</summary>
+    public const double MinutesBetweenLosses = 18 * 60;
+    /// <summary>A lost thing turns up again after this much time together.</summary>
+    public const double MinutesUntilFound = 30;
+
+    private double _loseAt = -1;
+
+    /// <summary>
+    /// Now and then Hoodie misplaces one of its things (never one it is using). Some time later, at a calm moment,
+    /// it notices it again, looks around, and shows it to you happily. Being away never makes anything get lost:
+    /// both clocks run on time spent together.
+    /// </summary>
+    private void CheckLostAndFound()
+    {
+        var doc = Memory.Doc;
+        foreach (var id in doc.LostItems.ToList())
+        {
+            if (Memory.LostForMinutes(id) < MinutesUntilFound || !CalmMoment()) continue;
+            Memory.FindItem(id);
+            Memory.Remember("found-again:" + id);
+            Log?.Invoke($"found {id} again");
+            StartActivity("found-again", sitting: false, enter: new() { (AnimClip.LookLeft, 0.7), (AnimClip.LookRight, 0.7), (AnimClip.Surprised, null) },
+                loop: AnimClip.ShowItem, exit: new() { (AnimClip.Happy, null) }, loopSeconds: 1.8, item: ItemFor(id));
+            return;
+        }
+
+        var eligible = doc.LostItems.Count == 0 && doc.MinutesTogether >= 6 * 60 && doc.MinutesTogether - doc.LastLossMinutes >= MinutesBetweenLosses;
+        if (!eligible)
+        {
+            _loseAt = -1;
+            return;
+        }
+        if (_loseAt < 0) _loseAt = _time + 60 + _rng.NextDouble() * 540;
+        if (_time < _loseAt || Machine.State != BehaviorState.Idle) return;
+        var candidates = doc.Items.Where(i => Memory.HasItem(i) && ItemFor(i) != HeldItem).ToList();
+        if (candidates.Count < 2) return; // keep at least one thing at hand
+        var lost = candidates[_rng.Next(candidates.Count)];
+        Memory.LoseItem(lost);
+        _loseAt = -1;
+        Log?.Invoke($"misplaced {lost}");
     }
 
     // ------------------------------------------------------------------ scares

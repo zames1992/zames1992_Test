@@ -294,7 +294,6 @@ public static partial class L
         ["just met"] = "только познакомились",
         ["{0} days"] = "{0} дн.",
         ["You two have only just met."] = "Вы только познакомились.",
-        ["Together for {0} days · {1}"] = "Вместе: {0} дн. · {1}",
         ["{0:0.#} h"] = "{0:0.#} ч",
         ["First met {0}"] = "Знакомство: {0}",
         ["Hoodie's things"] = "Вещи Худи",
@@ -342,5 +341,13 @@ public static partial class L
         ["Picked a favourite spot."] = "Выбрал любимое место.",
         ["Went to look at a new window."] = "Сходил посмотреть на новое окно.",
         ["Watched you play a game."] = "Смотрел, как ты играешь.",
+        ["{0} (misplaced)"] = "{0} (пропажа)",
+        ["Hoodie misplaced it somewhere. It will turn up again."] = "Худи куда-то его задевал. Найдётся.",
+        ["Found its {0} again after misplacing it."] = "Нашёл потерявшуюся вещь: {0}.",
+        ["Save as a postcard"] = "Сохранить открыткой",
+        ["{0} days together"] = "вместе {0} дн.",
+        ["Together for {0} · {1}"] = "Вместе: {0} · {1}",
+        ["1 day"] = "1 день",
+        ["1 day together"] = "вместе 1 день",
     };
 }

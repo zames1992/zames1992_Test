@@ -55,6 +55,11 @@
   simplified Settings with Privacy and Performance/debug groups; performance watch. 81 tests (incl. a 12 h simulated
   soak); QA scenario 44/44 PASS under Wine.
 
+- v1.3.1: lost-and-found (Hoodie rarely misplaces one of its things and finds it again later, both on time together,
+  shown only at calm moments and never in Quiet/Focus), postcards of moments from the Memories page (only Hoodie is
+  drawn), found items are no longer shown while the user asked for calm, QA release now tied to swing progress (no
+  timer flake). 83 tests; QA scenario 45/45 PASS under Wine three times in a row.
+
 ## FAILED (and what replaced it)
 
 - Building with the WindowsDesktop SDK on Linux: not shipped in the Ubuntu SDK → switched to a plain
@@ -67,7 +72,7 @@
 ## NEXT
 
 - Measure idle CPU/RAM on a desktop PC with a GPU (CI VM is GPU-less), and a real 8–12 h run (see `perf` log lines).
-- Next layers after v1.3, in order: deeper progression → inventory → collection → customization; lost-and-found items.
+- Next layers after v1.3, in order: deeper progression → inventory → collection → customization.
 - Elbow joints for nicer arm poses.
 
 ## BLOCKER

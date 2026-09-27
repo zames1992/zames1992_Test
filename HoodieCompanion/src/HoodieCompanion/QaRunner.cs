@@ -43,6 +43,8 @@ public sealed class QaRunner
     private bool _failed;
     private Vec2 _cursorFrom, _cursorTo;
     private double _cursorStart = -1, _cursorDur;
+    private Action? _releaseMidSwing;
+    private bool _swinging;
     private double _calmCpu = -1;
     private long _peakMem;
 
@@ -112,14 +114,17 @@ public sealed class QaRunner
         {
             var c = _host.CursorOverride!.Value;
             MoveCursor(c, c + new Vec2(world.Primary.Scale * 520, -world.Primary.Scale * 60), 0.2);
+            _swinging = true;
         });
-        At(6.47, "release", () =>
+        // Release mid-swing (by swing progress, not by the clock: a late timer tick must not release a pointer
+        // that has already stopped).
+        _releaseMidSwing = () =>
         {
             _host.ButtonOverride = false;
             pet.EndGrab(_host.CursorOverride!.Value);
             Check(pet.State == BehaviorState.Airborne && pet.Physics.Velocity.Length > 200, $"release gives throw velocity ({pet.Physics.Velocity.Length:0} px/s)");
             _host.CursorOverride = far;
-        });
+        };
         At(6.62, "air-snap", () => SnapPet("04-thrown"));
         At(9.0, "landed", () =>
         {
@@ -162,6 +167,8 @@ public sealed class QaRunner
             _host.Memory.GiveItem("ball");
             _host.Memory.Remember("unlock:mug");
             _host.Memory.Remember("first-grab");
+            _host.Memory.GiveItem("fan");
+            _host.Memory.LoseItem("fan"); // shows as "misplaced" on the Memories page
             _host.OpenPanel(PanelPage.Home);
         });
         At(13.6, "panel-snap", () => SnapWindow(_host.Panel, "08-panel-home"));
@@ -447,7 +454,17 @@ public sealed class QaRunner
             Check(sample.Handles > 0 && sample.WorkingSet > 0, $"own footprint is measured ({PerformanceWatch.Describe(sample)})");
             Check(pet.Mind.CurrentIntent is not null, $"decisions have reasons ({pet.Mind.CurrentIntent}: {pet.Mind.CurrentReason})");
         });
-        At(131.5, "report", Finish);
+        At(131.3, "v13-postcard", () =>
+        {
+            Postcard.Folder = _out;
+            var moment = new MomentMemory { Key = "first-fan", At = DateTime.Now };
+            _host.SavePostcard(new MomentMemory { Key = "found-again:ball", At = DateTime.Now }, "Found its ball again after misplacing it.", reveal: false);
+            var path = _host.SavePostcard(moment, "Fanned itself while your PC was working hard.", reveal: false);
+            var ok = path is not null && File.Exists(path) && new FileInfo(path).Length > 20_000;
+            if (ok) File.Copy(path!, Path.Combine(_out, "28-postcard.png"), true);
+            Check(ok, "a moment can be saved as a postcard (only Hoodie is drawn)");
+        });
+        At(131.8, "report", Finish);
 
         // Steps run in time order regardless of the order they were declared in.
         var ordered = _steps.Select((st, i) => (st, i)).OrderBy(x => x.st.At).ThenBy(x => x.i).Select(x => x.st).ToList();
@@ -491,6 +508,15 @@ public sealed class QaRunner
         if (_cursorStart >= 0)
         {
             var k = Math.Min(1, (now - _cursorStart) / _cursorDur);
+            if (_releaseMidSwing is { } release && _swinging && k >= 0.8)
+            {
+                _host.CursorOverride = Vec2.Lerp(_cursorFrom, _cursorTo, k);
+                _releaseMidSwing = null;
+                _swinging = false;
+                _cursorStart = -1;
+                release();
+                return;
+            }
             _host.CursorOverride = Vec2.Lerp(_cursorFrom, _cursorTo, k);
             if (k >= 1) _cursorStart = -1;
         }

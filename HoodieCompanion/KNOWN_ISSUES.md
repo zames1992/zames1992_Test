@@ -5,8 +5,8 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 ## Verification
 
 * **Built and tested without a physical Windows PC.** The release executable was cross-built with the .NET 8 SDK
-  and exercised end-to-end under Wine (automated QA scenario: 44/44 checks passed in v1.3, see
-  `docs/qa/qa-report-wine.txt`), plus 81 unit/simulation tests of the platform-independent core.
+  and exercised end-to-end under Wine (automated QA scenario: 45/45 checks passed in v1.3.1, see
+  `docs/qa/qa-report-wine.txt`), plus 83 unit/simulation tests of the platform-independent core.
   The GitHub Actions workflow `.github/workflows/hoodie-companion.yml` runs the same clean build, the unit tests,
   the automated QA scenario and a single-instance check on a real `windows-latest` machine — first run on
   Windows 10.0.26100: **16/16 QA checks PASS, single instance OK**, simulation 0.085 ms/frame, calm CPU 5.5 % of all
@@ -84,7 +84,8 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   the periodic rescan still catches them within a few seconds.
 * The **12-hour soak** is simulated (core logic in accelerated time plus the host's performance watch); an actual
   8–12 h run on real hardware is still to be done by the user. Look for `perf` lines in the log.
-* Lost-and-found items are modelled in memory but not used by behaviour yet.
+* Lost-and-found runs on time spent together (at most one loss per ~18 h together, found again after 30 min
+  together) — it cannot be triggered or tuned from the UI.
 * Item props (fan, mug, ball, blanket) are simple vector shapes; the fan is held in the right hand only.
 
 ## Visual
