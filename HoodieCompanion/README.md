@@ -8,7 +8,9 @@ remember something, it holds up the note when the time comes; you want space, it
 
 ## Launch
 
-1. Download `HoodieCompanion-win-x64.zip`, unzip anywhere (no installer, no admin rights).
+1. The ready-to-run **`HoodieCompanion.exe`** is kept in the root of the repository (next to `CLAUDE.md`), updated
+   with every version; `git pull` brings the latest one. Or download `HoodieCompanion-win-x64.zip` from a CI run and
+   unzip anywhere (no installer, no admin rights).
 2. Run **`HoodieCompanion.exe`**. It is self-contained: no .NET installation needed.
 3. Hoodie appears near the bottom-right of your main screen and starts living there.
    A tray icon (bottom-right) is always available. The first launch shows a short hello card.

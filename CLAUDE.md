@@ -13,7 +13,7 @@ Hoodie Companion — «живой» компаньон для рабочего �
 
 ```powershell
 dotnet test tests\HoodieCompanion.Tests -c Release       # юнит- и симуляционные тесты (сейчас 83, все должны проходить)
-.\build-release.bat                                      # чистая сборка + тесты + publish\win-x64\HoodieCompanion.exe + zip
+.\build-release.bat                                      # чистая сборка + тесты + publish\win-x64\HoodieCompanion.exe + zip + копия ..\HoodieCompanion.exe в корень
 dotnet run --project src\HoodieCompanion -c Release      # запуск из исходников
 publish\win-x64\HoodieCompanion.exe --qa qa --data qadata   # автоматический QA-сценарий (~2 мин) -> qa\qa-report.txt + скриншоты
 publish\win-x64\HoodieCompanion.exe --render-poses poses.png --data posedata   # лист поз персонажа
@@ -72,5 +72,9 @@ $env:HOODIE_EXPORT_CATALOG="$PWD\ANIMATION_CATALOG.md"; dotnet test tests\Hoodie
    - рабочая ветка `claude/create-folder-f23ng6`, PR https://github.com/zames1992/zames1992_Test/pull/1;
    - осмысленные сообщения коммитов;
    - без force-push.
-9. Общение с пользователем — по-русски; код, комментарии и документы в репозитории — по-английски
+9. **Готовый exe всегда лежит в корне репозитория** (`HoodieCompanion.exe` рядом с этим файлом, то есть
+   `Desktop\Hoodie\HoodieCompanion.exe` у пользователя). После каждого изменения, которое попадает в ветку,
+   пересобирать его (`.\build-release.bat` сам кладёт копию в корень) и коммитить вместе с изменением.
+   Запускать нужно именно его.
+10. Общение с пользователем — по-русски; код, комментарии и документы в репозитории — по-английски
    (кроме этого файла и мастер-промпта).

@@ -99,6 +99,8 @@ Hoodie — не виджет и не набор случайных анимац�
   - QA `PASS`;
   - обновлены `PROGRESS.md` / `KNOWN_ISSUES.md` / `README.md` (и `PLAN.md` при изменении архитектуры).
 - Версия в `src/HoodieCompanion/HoodieCompanion.csproj` (`<Version>`).
+- Готовый `HoodieCompanion.exe` всегда лежит в корне папки `Hoodie`: после каждого изменения запусти
+  `.\build-release.bat` (он кладёт копию в корень) и закоммить обновлённый exe вместе с изменением.
 - Git: ветка `claude/create-folder-f23ng6`, PR https://github.com/zames1992/zames1992_Test/pull/1. Коммить
   осмысленными сообщениями и пушь после проверки. После пуша проверь CI (workflow «Hoodie Companion»,
   job `windows-release`).

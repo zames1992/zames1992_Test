@@ -25,9 +25,13 @@ echo [4/4] Packaging ...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Compress-Archive -Force -Path 'publish\win-x64\HoodieCompanion.exe','README.md','KNOWN_ISSUES.md' -DestinationPath 'publish\HoodieCompanion-win-x64.zip'" || goto :fail
 
+rem Keep a ready-to-run copy in the root of the repository folder (e.g. Desktop\Hoodie\HoodieCompanion.exe).
+copy /y "publish\win-x64\HoodieCompanion.exe" "..\HoodieCompanion.exe" >nul || echo (could not update ..\HoodieCompanion.exe - is Hoodie running? Close it and build again)
+
 echo.
 echo Done:
-echo   publish\win-x64\HoodieCompanion.exe   ^<-- run this to start Hoodie
+echo   ..\HoodieCompanion.exe                 ^<-- run this to start Hoodie (root of the repository folder)
+echo   publish\win-x64\HoodieCompanion.exe
 echo   publish\HoodieCompanion-win-x64.zip
 if not defined CI (
   explorer "publish\win-x64"
