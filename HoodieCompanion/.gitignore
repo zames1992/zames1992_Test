@@ -1,0 +1,8 @@
+bin/
+obj/
+/publish/
+/qa/
+/qadata/
+*.user
+.vs/
+!src/HoodieCompanion/app.manifest
