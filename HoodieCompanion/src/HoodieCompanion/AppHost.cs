@@ -137,6 +137,18 @@ public sealed class AppHost : IDisposable
             _panel.Close(animated: false);
             return Pet.BeginGrab(CursorOverride ?? cursor);
         };
+        _petWindow.TryCatch = cursor =>
+        {
+            // Pressing on Hoodie while it flies catches it at once (no drag threshold).
+            if (Pet.State is not (BehaviorState.Airborne or BehaviorState.Jumping)) return false;
+            _panel.Close(animated: false);
+            return Pet.BeginGrab(CursorOverride ?? cursor);
+        };
+        _petWindow.Pressed += _ =>
+        {
+            Pet.Pressed();
+            _clock.SetMode(FrameRateMode.Active);
+        };
         _petWindow.Released += cursor => Pet.EndGrab(CursorOverride ?? cursor);
         _petWindow.Clicked += OnPetClicked;
         _petWindow.RightClicked += () => OpenPanel(PanelPage.Commands);
@@ -276,7 +288,7 @@ public sealed class AppHost : IDisposable
             if (_alerts.IsShowing && (_frameCount++ % 6) == 0) _alerts.Place();
 
             var mode = !rs.Visible ? FrameRateMode.Idle
-                : rs.Calm && !_petWindow.IsDragging && !_panel.IsOpen ? FrameRateMode.Calm
+                : rs.Calm && !_petWindow.IsDragging && !_petWindow.IsPressed && !_panel.IsOpen ? FrameRateMode.Calm
                 : FrameRateMode.Active;
             _clock.SetMode(mode);
         }
@@ -405,14 +417,38 @@ public sealed class AppHost : IDisposable
 
     // ------------------------------------------------------------------ interaction
 
-    private void OnPetClicked()
+    /// <summary>Raised after every click on Hoodie has been answered (QA counts them).</summary>
+    public event Action<ClickTarget, ClickResult>? PetClickHandled;
+
+    private void OnPetClicked(ClickTarget target)
     {
+        // Hoodie always answers the click (every state has its own reaction); the menu toggles alongside.
+        var result = Pet.Clicked(target);
+        PetClickHandled?.Invoke(target, result);
+        Log.Debug($"pet clicked ({target}) in {Pet.State}: {result.Response}, menu {result.OpenMenu}, panel open {_panel.IsOpen}");
+        if (result.Response == ClickResponse.AcknowledgeAlert && _alerts.IsShowing)
+        {
+            _alerts.AcceptPrimary();
+            return;
+        }
         if (_panel.IsOpen)
         {
             _panel.Close(animated: true);
             return;
         }
-        Pet.Clicked();
+        if (!result.OpenMenu) return;
+        if (result.Response == ClickResponse.Wake)
+        {
+            // The menu follows once Hoodie has woken up.
+            var wait = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+            wait.Tick += (_, _) =>
+            {
+                wait.Stop();
+                if (!_panel.IsOpen && !EmergencyHidden) OpenPanel(PanelPage.Home);
+            };
+            wait.Start();
+            return;
+        }
         OpenPanel(PanelPage.Home);
     }
 

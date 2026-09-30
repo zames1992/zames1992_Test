@@ -34,6 +34,16 @@ public sealed class CharacterRig : Canvas
     private readonly List<Group> _order = new();
     private readonly Dictionary<string, List<Path>> _partsByGroup = new();
     private readonly Dictionary<Path, double> _baseOpacity = new();
+    private readonly Dictionary<Path, string> _groupOf = new();
+    private readonly Dictionary<string, List<Path>> _halosByGroup = new();
+    private readonly List<Path> _halos = new();
+    private double _haloThickness = -1;
+
+    /// <summary>
+    /// Almost transparent (alpha 1/255): invisible, but Windows counts the pixel as part of the layered window,
+    /// so a click there reaches Hoodie instead of falling through to the desktop.
+    /// </summary>
+    private static readonly Brush HaloBrush = Freeze(new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)));
 
     public CharacterRig()
     {
@@ -43,12 +53,66 @@ public sealed class CharacterRig : Canvas
         Build(LoadRigJson());
     }
 
-    /// <summary>Paths of the body that accept mouse input (everything but the ground shadow and props).</summary>
-    public IEnumerable<Path> HitParts => _partsByGroup.Where(k => IsBodyGroup(k.Key)).SelectMany(k => k.Value);
+    /// <summary>Paths that accept mouse input: the body and every visible thing Hoodie holds (not the ground shadow).</summary>
+    public IEnumerable<Path> HitParts => _partsByGroup.Where(k => IsHitGroup(k.Key)).SelectMany(k => k.Value);
 
-    private static readonly HashSet<string> PropGroups = new() { "shadow", "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil", "crate", "fan", "mug", "ball", "blanket" };
+    private static readonly HashSet<string> PropGroups = new() { "item", "backpack", "backpackMouth", "backpackLid", "laptop", "laptopLid", "book", "notebook", "pencil", "crate", "fan", "mug", "ball", "blanket" };
 
-    private static bool IsBodyGroup(string name) => !PropGroups.Contains(name);
+    public static bool IsPropGroup(string name) => PropGroups.Contains(name);
+
+    private static bool IsHitGroup(string name) => name != "shadow";
+
+    /// <summary>
+    /// Sets the width of the invisible hit halo around the silhouette, in reference pixels (the stroke is
+    /// centred on the outline, so the halo reaches half of it outside the drawn edge).
+    /// </summary>
+    public void SetHaloWidth(double referencePixels)
+    {
+        if (Math.Abs(referencePixels - _haloThickness) < 2) return;
+        _haloThickness = referencePixels;
+        var grow = referencePixels / 2;
+        foreach (var h in _halos)
+        {
+            var r = _haloBase[h];
+            r.Inflate(grow, grow);
+            var radius = Math.Min(r.Width, r.Height) * 0.35;
+            var g = new RectangleGeometry(r, radius, radius);
+            g.Freeze();
+            h.Data = g;
+        }
+    }
+
+    /// <summary>Screen bounds (DIPs of <paramref name="ancestor"/>) of a group's visible parts, or null.</summary>
+    public Rect? GroupBounds(string group, Visual ancestor)
+    {
+        if (!_partsByGroup.TryGetValue(group, out var parts)) return null;
+        Rect? r = null;
+        foreach (var path in parts)
+        {
+            if (path.Visibility != Visibility.Visible) continue;
+            var b = path.TransformToAncestor(ancestor).TransformBounds(path.Data.Bounds);
+            r = r is Rect acc ? Rect.Union(acc, b) : b;
+        }
+        return r;
+    }
+
+    /// <summary>Name of the rig group drawn at a point (rig reference coordinates), or null for empty space.</summary>
+    public string? GroupAt(Point local)
+    {
+        string? found = null;
+        // Hidden or faded-out parts (a prop that is put away) must not count.
+        VisualTreeHelper.HitTest(this, d => d is UIElement { IsVisible: false } or UIElement { Opacity: < 0.05 }
+                ? HitTestFilterBehavior.ContinueSkipSelfAndChildren : HitTestFilterBehavior.Continue, r =>
+        {
+            if (r.VisualHit is Path path && _groupOf.TryGetValue(path, out var g))
+            {
+                found = g;
+                return HitTestResultBehavior.Stop;
+            }
+            return HitTestResultBehavior.Continue;
+        }, new PointHitTestParameters(local));
+        return found;
+    }
 
     public static string LoadRigJson()
     {
@@ -120,13 +184,54 @@ public sealed class CharacterRig : Canvas
                 RenderTransform = group.Transform,
                 SnapsToDevicePixels = false,
             };
-            if (!IsBodyGroup(groupName)) path.IsHitTestVisible = false;
+            if (!IsHitGroup(groupName)) path.IsHitTestVisible = false;
+            else
+            {
+                // Collected per group: one merged outline per group becomes its hit halo (see BuildHalos).
+                System.Windows.Media.Geometry haloShape = fill is null or "none"
+                    ? new RectangleGeometry(geometry.GetRenderBounds(new Pen(Brushes.Black, width)))
+                    : geometry;
+                if (!_haloShapes.TryGetValue(groupName, out var shapes)) _haloShapes[groupName] = shapes = new List<System.Windows.Media.Geometry>();
+                shapes.Add(haloShape);
+            }
+            _groupOf[path] = groupName;
             if (fill is "#34363E" or "#262930" or "#25282E" && groupName is "head" or "torso" or "armL" or "armR") _baseFill[path] = fill!;
             _baseOpacity[path] = opacity;
             if (!_partsByGroup.TryGetValue(groupName, out var list)) _partsByGroup[groupName] = list = new List<Path>();
             list.Add(path);
             Children.Add(path);
         }
+        BuildHalos();
+    }
+
+    private readonly Dictionary<string, List<System.Windows.Media.Geometry>> _haloShapes = new();
+    private readonly Dictionary<Path, Rect> _haloBase = new();
+
+    /// <summary>
+    /// One invisible hit halo per group: a rounded box around the group's parts (grown by the halo width),
+    /// filled with an almost transparent brush. Simple shapes keep the layered window's per-frame cost low.
+    /// </summary>
+    private void BuildHalos()
+    {
+        foreach (var (groupName, shapes) in _haloShapes)
+        {
+            var bounds = Rect.Empty;
+            foreach (var g in shapes) bounds.Union(g.Bounds);
+            if (bounds.IsEmpty) continue;
+            var halo = new Path
+            {
+                Fill = HaloBrush,
+                RenderTransform = _groups[groupName].Transform,
+                SnapsToDevicePixels = false,
+            };
+            _haloBase[halo] = bounds;
+            _groupOf[halo] = groupName;
+            _halos.Add(halo);
+            _halosByGroup[groupName] = new List<Path> { halo };
+            Children.Insert(_halos.Count - 1, halo);
+        }
+        _haloShapes.Clear();
+        SetHaloWidth(40);
     }
 
     // ------------------------------------------------------------------ hoodie colour (cosmetic, unlocked over time)
@@ -244,6 +349,13 @@ public sealed class CharacterRig : Canvas
             if (Math.Abs(path.Opacity - o) > 0.001) path.Opacity = o;
             var vis = o > 0.005 ? Visibility.Visible : Visibility.Hidden;
             if (path.Visibility != vis) path.Visibility = vis;
+        }
+        // A hidden prop must not catch clicks through its halo either.
+        if (_halosByGroup.TryGetValue(group, out var halos))
+        {
+            var vis = alpha > 0.3 ? Visibility.Visible : Visibility.Hidden;
+            foreach (var h in halos)
+                if (h.Visibility != vis) h.Visibility = vis;
         }
     }
 

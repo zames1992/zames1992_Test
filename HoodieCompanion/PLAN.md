@@ -172,3 +172,26 @@ as UI.
   loop never loses time together. `PerformanceWatch` samples CPU, working set, managed heap, handles, GDI and USER
   objects once a minute, logs every 10 minutes and warns on growth; a 12-hour simulated soak test checks bounds and
   memory growth.
+
+## Responsive Hoodie (v1.4)
+
+Goal: Hoodie answers every touch in every state, the UI gets lighter (no Home, a small menu instead of the big
+panel), and playing with it becomes a real toy (catching, petting, tickling, high-fives). Stages, in order:
+1. clickable in any animation; 2. remove Home; 3. compact bubble menu; 4. toss and catch; 5. more interaction;
+6. more (and more visible) animations; 7. cheap system events; 8. performance. Full brief: `docs/PROMPT_v1.4.md`.
+
+* **Hit testing.** The pet window is a per-pixel layered window, so only drawn pixels receive clicks. Props (laptop,
+  book, notebook, mug, fan, ball, blanket, backpack, the held item) are hit-testable now, and every rig group has an
+  invisible hit halo: a rounded box around the group (grown by `PetWindow.HaloDip` = 10 DIP), filled with a 1/255-alpha
+  brush and moved by the group's own transform. Simple boxes, not stroked outlines, keep the per-frame cost of the
+  layered window low. A press where no visible part is drawn is ignored (`CharacterRig.GroupAt`), so hidden props never
+  count.
+* **Click semantics.** `PetController.Clicked(ClickTarget)` returns a `ClickResult`: the answer for the current state
+  (`ResponseFor`, one per visible `BehaviorState`) and whether the host opens the menu. Answers are *gestures* layered
+  on top of the running clip (`AnimationController.PlayGesture`: Boop, SeatedWave, Glance, HoldWave, OkayNod,
+  LookBackWave, KickBall, PropUse), so a click never breaks the state's own animation (climbing, laptop, leaving).
+  Clicking during an alert runs the card's main action; the menu does not open for a ball kick or an alert.
+* **Press feedback.** `PetWindow.Pressed` → `PetController.Pressed` → `AnimationController.Press`: a 3–5 % squash and
+  wide eyes on the very next frame, before the click is complete.
+* **Catch.** A press while Hoodie flies (`Airborne` / `Jumping`) grabs at once through `PetWindow.TryCatch` (no 5 px
+  drag threshold). Stage 4 builds juggling and rescues on top of it.

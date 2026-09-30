@@ -33,6 +33,10 @@ public sealed class PetWindow : Window
     private bool _pressed;
     private bool _dragging;
     private Vec2 _pressPx;
+    private ClickTarget _pressTarget;
+
+    /// <summary>Invisible hit halo around the silhouette, in DIPs beyond the drawn edge.</summary>
+    public const double HaloDip = 10;
 
     public PetWindow()
     {
@@ -120,8 +124,16 @@ public sealed class PetWindow : Window
     /// <summary>Asked when a drag gesture starts; return false to ignore (e.g. grab disabled).</summary>
     public Func<Vec2, bool>? TryBeginGrab { get; set; }
 
+    /// <summary>
+    /// Asked the moment the button goes down: return true to grab immediately (catching Hoodie in the air),
+    /// without waiting for the pointer to move.
+    /// </summary>
+    public Func<Vec2, bool>? TryCatch { get; set; }
+
     public event Action<Vec2>? Released;
-    public event Action? Clicked;
+    public event Action<ClickTarget>? Clicked;
+    /// <summary>The button went down on Hoodie (fires before any click or grab).</summary>
+    public event Action<ClickTarget>? Pressed;
     public event Action? RightClicked;
     public event Action? ItemDragEnter;
     public event Action? ItemDragLeave;
@@ -132,6 +144,7 @@ public sealed class PetWindow : Window
     /// <summary>QA: the mouse-down half of a click (as WM_LBUTTONDOWN would deliver it).</summary>
     internal void QaPress()
     {
+        _pressTarget = ClickTarget.Body;
         _pressed = true;
         _pressAge.Restart();
         _dragging = false;
@@ -143,7 +156,7 @@ public sealed class PetWindow : Window
     {
         if (!_pressed) return false;
         _pressed = false;
-        Clicked?.Invoke();
+        Clicked?.Invoke(_pressTarget);
         return true;
     }
     public bool IsPressed => _pressed;
@@ -179,13 +192,27 @@ public sealed class PetWindow : Window
 
     private void OnLeftDown(object sender, MouseButtonEventArgs e)
     {
+        var group = Rig.GroupAt(e.GetPosition(Rig));
+        if (group is null)
+        {
+            // Nothing of Hoodie is drawn here (Windows normally lets such clicks through on its own).
+            Log.Debug("press on an empty pixel ignored");
+            return;
+        }
         _pressed = true;
         _pressAge.Restart();
         _dragging = false;
         _pressPx = MouseService.Cursor();
+        _pressTarget = TargetOf(group);
+        Log.Debug($"pet press at {_pressPx.X:0},{_pressPx.Y:0} on {group ?? "nothing"} ({_pressTarget})");
         CaptureMouse();
         e.Handled = true;
+        Pressed?.Invoke(_pressTarget);
+        if (TryCatch?.Invoke(_pressPx) == true) _dragging = true;
     }
+
+    private static ClickTarget TargetOf(string? group) =>
+        group == "ball" ? ClickTarget.Ball : group is not null && CharacterRig.IsPropGroup(group) ? ClickTarget.Prop : ClickTarget.Body;
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
@@ -202,6 +229,7 @@ public sealed class PetWindow : Window
 
     private void OnLeftUp(object sender, MouseButtonEventArgs e)
     {
+        Log.Debug($"pet button up (pressed {_pressed}, dragging {_dragging})");
         if (!_pressed) return;
         e.Handled = true;
         var wasDragging = _dragging;
@@ -209,7 +237,7 @@ public sealed class PetWindow : Window
         _dragging = false;
         ReleaseMouseCapture();
         if (wasDragging) Released?.Invoke(MouseService.Cursor());
-        else Clicked?.Invoke();
+        else Clicked?.Invoke(_pressTarget);
     }
 
     /// <summary>Draws one frame and moves the window (physical pixels) to follow Hoodie.</summary>
@@ -242,6 +270,8 @@ public sealed class PetWindow : Window
 
         // Stage matrix: local -> mirror -> anchor -> scale -> tilt -> window DIPs.
         var k = t.RefToPx / _dpi;
+        // The stroke straddles the outline, so twice the halo reaches HaloDip past the drawn edge.
+        Rig.SetHaloWidth(2 * HaloDip / Math.Max(0.01, k));
         var mirroredAnchor = RigTransform.Mirror(t.AnchorLocal, t.Facing);
         var m = t.Facing > 0 ? new Matrix(-1, 0, 0, 1, 2 * RigTransform.AxisX, 0) : Matrix.Identity;
         m.Translate(-mirroredAnchor.X, -mirroredAnchor.Y);
@@ -266,6 +296,14 @@ public sealed class PetWindow : Window
     }
 
     private static Point Mirror(Point p, int facing) => facing > 0 ? new Point(2 * RigTransform.AxisX - p.X, p.Y) : p;
+
+    /// <summary>Screen point (physical pixels) at the centre of a rig group as drawn now (QA clicks there).</summary>
+    public Vec2? ScreenPointOf(string group)
+    {
+        if (Hwnd == IntPtr.Zero || Rig.GroupBounds(group, this) is not Rect r) return null;
+        var p = PointToScreen(new Point(r.X + r.Width / 2, r.Y + r.Height / 2));
+        return new Vec2(p.X, p.Y);
+    }
 
     /// <summary>Physical-pixel rectangle currently occupied by the window.</summary>
     public RectD WindowRectPx => new(_lastX, _lastY, _lastW, _lastH);

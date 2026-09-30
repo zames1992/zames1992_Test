@@ -27,7 +27,8 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 | Action | What happens |
 |---|---|
 | **Move the pointer near Hoodie** | It looks at your "hand"; lingers → curious; rush at it → surprised |
-| **Left click** | Small wave + the **Quick Panel** opens beside it (click again or press Esc to close) |
+| **Left click** | Hoodie answers in whatever it is doing — a little "boop" nod, a wave from where it sits, a look up from its laptop, a wave with one hand while climbing, "I'm okay" after a landing — and the **Quick Panel** opens beside it (click again or press Esc to close). Clicking its laptop, book, mug or blanket counts too; clicking its **ball** kicks it. During a reminder or timer a click means **Done** |
+| **Press on a flying Hoodie** | Catches it in the air at once |
 | **Right click** | Commands card: Stay here / Go home / Set Home / Show backpack / Be quiet / Let's play / Leave me alone / Territory / Settings / Hide |
 | **Drag Hoodie** | Pick it up wherever you grab it: by the hood, either hand, a foot (upside down!) or the body — each hangs differently. The held point follows your pointer, the body swings behind it. Held gently for a while it relaxes; swung hard it wriggles and gets dizzy |
 | **Swing and release** | Hoodie is thrown with your pointer's velocity, flies (also onto another monitor), lands exactly where its feet touch, dusts itself off and looks at you. Dropped below the taskbar edge, it grabs the edge and climbs back up |

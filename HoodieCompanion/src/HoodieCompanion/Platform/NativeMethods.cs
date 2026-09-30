@@ -119,6 +119,50 @@ internal static class NativeMethods
     public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdc, ref RECT rect, IntPtr data);
 
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern uint SendInput(uint count, INPUT[] inputs, int size);
+
+    public const uint INPUT_MOUSE = 0;
+    public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    public const uint MOUSEEVENTF_LEFTUP = 0x0004;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int dx, dy;
+        public uint mouseData, dwFlags, time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct INPUT
+    {
+        [FieldOffset(0)] public uint type;
+        [FieldOffset(8)] public MOUSEINPUT mi;
+    }
+
+    public const uint MOUSEEVENTF_MOVE = 0x0001;
+    public const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
+    public const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
+    [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+
+    /// <summary>
+    /// Real mouse input (QA only) at an absolute virtual-desktop point, so it goes through Windows' own hit
+    /// testing exactly like a user's click. <paramref name="button"/>: null = move only, true = down, false = up.
+    /// </summary>
+    public static void MouseAt(int x, int y, bool? button)
+    {
+        int vx = GetSystemMetrics(76), vy = GetSystemMetrics(77), vw = Math.Max(2, GetSystemMetrics(78)), vh = Math.Max(2, GetSystemMetrics(79));
+        var flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        if (button == true) flags |= MOUSEEVENTF_LEFTDOWN;
+        if (button == false) flags |= MOUSEEVENTF_LEFTUP;
+        var input = new INPUT
+        {
+            type = INPUT_MOUSE,
+            mi = new MOUSEINPUT { dx = (int)((x - vx) * 65535L / (vw - 1)), dy = (int)((y - vy) * 65535L / (vh - 1)), dwFlags = flags },
+        };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
     [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
     [DllImport("user32.dll")] public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc proc, IntPtr data);

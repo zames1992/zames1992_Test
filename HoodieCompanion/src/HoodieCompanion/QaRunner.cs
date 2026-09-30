@@ -62,6 +62,256 @@ public sealed class QaRunner
 
     private void At(double t, string name, Action act) => _steps.Add((t, name, act));
 
+    private readonly List<(double Deadline, string Name, Func<bool> Poll)> _polls = new();
+
+    /// <summary>Runs <paramref name="poll"/> every tick until it returns true (FAIL after <paramref name="timeout"/> s).</summary>
+    private void Until(string name, double timeout, Func<bool> poll) => _polls.Add((Now + timeout, name, poll));
+
+    // ------------------------------------------------------------------ real clicks (v1.4)
+
+    private int _clicks;
+    private ClickTarget _lastClickTarget;
+    private ClickResult _lastClick;
+
+    /// <summary>
+    /// A real click through Windows (cursor moved there, SendInput button down + up), so the layered window's
+    /// own per-pixel hit testing decides whether it reaches Hoodie, exactly as for the user.
+    /// </summary>
+    private static void RealClick(Vec2 px, bool release = true)
+    {
+        int x = (int)Math.Round(px.X), y = (int)Math.Round(px.Y);
+        NativeMethods.MouseAt(x, y, null);
+        NativeMethods.MouseAt(x, y, true);
+        if (release) NativeMethods.MouseAt(x, y, false);
+        // A trailing move at the same spot: some input stacks (Wine) only deliver queued events on the next one.
+        NativeMethods.MouseAt(x, y, null);
+    }
+
+    /// <summary>Hands the pointer and the button back to the real mouse for the real-click checks.</summary>
+    private void UseRealMouse()
+    {
+        _host.CursorOverride = null;
+        _host.ButtonOverride = null;
+    }
+
+    /// <summary>Thrown a little (simulated pointer), then clicked for real while it lands.</summary>
+    private void RealLandingCase(Action next)
+    {
+        var pet = _host.Pet;
+        var prim = _host.World.Primary.WorkArea;
+        pet.StopActivity();
+        pet.Place(new Vec2(prim.Left + prim.Width * 0.5, prim.Bottom), appear: false);
+        var start = Now;
+        var phase = 0;
+        var before = 0;
+        Until("real click on a landing Hoodie", 8, () =>
+        {
+            switch (phase)
+            {
+                case 0:
+                    if (Now - start < 0.5) return false;
+                    var hood = pet.Transform.LocalToWorld(new Vec2(272, 140));
+                    _host.CursorOverride = hood;
+                    _host.ButtonOverride = true;
+                    pet.BeginGrab(hood);
+                    MoveCursor(hood, hood + new Vec2(0, -_host.World.Primary.Scale * 160), 0.25);
+                    phase = 1;
+                    return false;
+                case 1:
+                    if (_cursorStart >= 0) return false;
+                    _host.ButtonOverride = false;
+                    pet.EndGrab(_host.CursorOverride!.Value);
+                    UseRealMouse();
+                    before = _clicks;
+                    phase = 2;
+                    return false;
+                case 2:
+                    if (pet.State is not (BehaviorState.Landing or BehaviorState.Recovering) || _host.PetWindow.ScreenPointOf("torso") is not { } p) return false;
+                    RealClick(p);
+                    phase = 3;
+                    return false;
+                default:
+                    if (_clicks <= before) return false;
+                    Check(_lastClick.Response == ClickResponse.ImOkay, $"real click on a landing Hoodie is answered ({_lastClick.Response})");
+                    _host.Panel.Close(animated: false);
+                    next();
+                    return true;
+            }
+        });
+    }
+
+    /// <summary>In the air, pressing on Hoodie catches it at once (no drag threshold, no menu).</summary>
+    private void RealCatchCase(Action next)
+    {
+        var pet = _host.Pet;
+        var prim = _host.World.Primary.WorkArea;
+        _host.Panel.Close(animated: false);
+        pet.Place(new Vec2(prim.Left + prim.Width * 0.5, prim.Bottom), appear: false);
+        var start = Now;
+        var phase = 0;
+        Until("catching Hoodie in the air", 8, () =>
+        {
+            switch (phase)
+            {
+                case 0:
+                    if (Now - start < 0.5) return false;
+                    var hood = pet.Transform.LocalToWorld(new Vec2(272, 140));
+                    _host.CursorOverride = hood;
+                    _host.ButtonOverride = true;
+                    pet.BeginGrab(hood);
+                    MoveCursor(hood, hood + new Vec2(0, -_host.World.Primary.Scale * 260), 0.12);
+                    phase = 1;
+                    return false;
+                case 1:
+                    if (_cursorStart >= 0) return false;
+                    _host.ButtonOverride = false;
+                    pet.EndGrab(_host.CursorOverride!.Value);
+                    UseRealMouse();
+                    phase = 2;
+                    return false;
+                case 2:
+                    if (pet.State != BehaviorState.Airborne || _host.PetWindow.ScreenPointOf("torso") is not { } p)
+                    {
+                        if (pet.State is BehaviorState.Landing or BehaviorState.Recovering) { Check(false, "a real press on a flying Hoodie catches it (it landed first)"); next(); return true; }
+                        return false;
+                    }
+                    RealClick(p, release: false);
+                    phase = 3;
+                    return false;
+                default:
+                    if (pet.State == BehaviorState.Grabbed)
+                    {
+                        Check(!_host.Panel.IsOpen, "a real press on a flying Hoodie catches it (no menu)");
+                        var c = MouseService.Cursor();
+                        NativeMethods.MouseAt((int)c.X, (int)c.Y, false);
+                        NativeMethods.MouseAt((int)c.X, (int)c.Y, null);
+                        next();
+                        return true;
+                    }
+                    if (pet.State is BehaviorState.Landing or BehaviorState.Recovering)
+                    {
+                        Check(false, "a real press on a flying Hoodie catches it (it landed instead)");
+                        NativeMethods.MouseAt(0, 0, false);
+                        next();
+                        return true;
+                    }
+                    return false;
+            }
+        });
+    }
+
+    /// <summary>Empty space next to Hoodie must stay the desktop's.</summary>
+    private void RealEmptyCase(Action next)
+    {
+        var pet = _host.Pet;
+        var world = _host.World;
+        var prim = world.Primary.WorkArea;
+        _host.Panel.Close(animated: false);
+        pet.Place(new Vec2(prim.Left + prim.Width * 0.5, prim.Bottom), appear: false);
+        pet.SetMode(PresenceMode.Quiet);
+        var start = Now;
+        var before = 0;
+        var sent = false;
+        Until("a click beside Hoodie", 6, () =>
+        {
+            if (!sent)
+            {
+                if (Now - start < 2) return false;
+                before = _clicks;
+                // Behind Hoodie (its legs stretch forward when it sits), 30 DIP past the body.
+                var body = _host.PetBoundsPx;
+                var x = pet.Facing > 0 ? body.Left - 30 * world.Primary.Scale : body.Right + 30 * world.Primary.Scale;
+                RealClick(new Vec2(x, body.Top + body.Height * 0.3));
+                sent = true;
+                start = Now;
+                return false;
+            }
+            if (Now - start < 1) return false;
+            Check(_clicks == before, $"a click 30 DIP beside Hoodie goes to the desktop ({_clicks - before} clicks reached Hoodie)");
+            pet.SetMode(PresenceMode.Normal);
+            _host.CursorOverride = new Vec2(prim.Left + 10, prim.Top + 10);
+            _host.ButtonOverride = false;
+            next();
+            return true;
+        });
+    }
+
+    private sealed record ClickCaseSpec(string Label, Action Setup, string Group, Func<ClickResult, bool>? Expect, double Settle, Action? Then);
+
+    private readonly List<ClickCaseSpec> _clickCases = new();
+
+    /// <summary>Queues a real click on a rig group of Hoodie (see <see cref="RunClickCases"/>).</summary>
+    private void ClickCase(string label, Action setup, string group, Func<ClickResult, bool>? expect = null, double settle = 1.6, Action? then = null) =>
+        _clickCases.Add(new ClickCaseSpec(label, setup, group, expect, settle, then));
+
+    /// <summary>
+    /// Runs the queued click cases one after another (each waits for the previous one to finish, so a slow
+    /// machine cannot make them overlap), then calls <paramref name="done"/>.
+    /// </summary>
+    private void RunClickCases(Action done)
+    {
+        var index = -1;
+        var phase = 0;
+        double started = 0, deadline = 0;
+        var before = 0;
+        ClickCaseSpec? c = null;
+        Until("real click cases", 120, () =>
+        {
+            if (c is null)
+            {
+                if (++index >= _clickCases.Count) { done(); return true; }
+                c = _clickCases[index];
+                UseRealMouse();
+                NativeMethods.MouseAt(0, 0, null);
+                _host.Panel.Close(animated: false);
+                try { c.Setup(); } catch (Exception ex) { Check(false, $"real click on {c.Label}: setup threw {ex.Message}"); c = null; return false; }
+                started = Now;
+                phase = 0;
+                return false;
+            }
+            switch (phase)
+            {
+                case 0:
+                    if (Now - started < 0.4) return false;
+                    c.Then?.Invoke();
+                    phase = 1;
+                    return false;
+                case 1:
+                    if (Now - started < c.Settle) return false;
+                    // "a|b": the first of these groups that is drawn (e.g. the blanket if Hoodie took it to bed).
+                    var drawn = c.Group.Split('|').Select(g => _host.PetWindow.ScreenPointOf(g)).FirstOrDefault(p => p is not null);
+                    if (drawn is not { } at)
+                    {
+                        if (Now - started > c.Settle + 2)
+                        {
+                            Check(false, $"real click on {c.Label}: '{c.Group}' is not drawn ({_host.Pet.State}, {_host.LastRender.Clip})");
+                            c = null;
+                        }
+                        return false;
+                    }
+                    before = _clicks;
+                    RealClick(at);
+                    deadline = Now + 2;
+                    phase = 2;
+                    return false;
+                default:
+                    if (_clicks > before)
+                    {
+                        var ok = c.Expect?.Invoke(_lastClick) ?? _lastClick.Response != ClickResponse.None;
+                        Check(ok, $"real click on {c.Label} is answered ({_lastClick.Response}, {_lastClickTarget})");
+                        _host.Panel.Close(animated: false);
+                        c = null;
+                    }
+                    else if (Now > deadline)
+                    {
+                        Check(false, $"real click on {c.Label} is answered (no click)");
+                        c = null;
+                    }
+                    return false;
+            }
+        });
+    }
+
     private void Check(bool ok, string what)
     {
         _checks.Add($"{(ok ? "PASS" : "FAIL")}  {what}");
@@ -80,6 +330,7 @@ public sealed class QaRunner
         _host.Settings.FirstRunDone = true;
         // The QA machine has no real user: keep the away-from-keyboard timeline out of the scripted scenario.
         pet.Mind.AfkScale = 10000;
+        _host.PetClickHandled += (target, result) => { _clicks++; _lastClickTarget = target; _lastClick = result; };
         var testFile = Path.Combine(_out, "test.txt");
         File.WriteAllText(testFile, "Hello from the Hoodie QA run.");
         var testFolder = Directory.CreateDirectory(Path.Combine(_out, "Test Folder")).FullName;
@@ -390,8 +641,14 @@ public sealed class QaRunner
         At(97.75, "click-release", () =>
         {
             var delivered = _host.PetWindow.QaRelease();
-            Check(delivered && _host.Panel.IsOpen, "a quick click on a walking Hoodie opens the panel");
-            _host.Panel.Close(animated: false);
+            // The menu opens at once, or right after Hoodie wakes up if it was still asleep.
+            Until("a quick click on a walking Hoodie opens the panel", 1.5, () =>
+            {
+                if (!delivered || !_host.Panel.IsOpen) return false;
+                Check(true, "a quick click on a walking Hoodie opens the panel");
+                _host.Panel.Close(animated: false);
+                return true;
+            });
         });
         At(98.0, "platform", () =>
         {
@@ -464,8 +721,43 @@ public sealed class QaRunner
             if (ok) File.Copy(path!, Path.Combine(_out, "28-postcard.png"), true);
             Check(ok, "a moment can be saved as a postcard (only Hoodie is drawn)");
         });
-        At(131.8, "report", Finish);
+        // v1.4: real clicks in every kind of animation (through Windows' own hit testing, not QaPress).
+        var mid = prim.Left + prim.Width * 0.5;
+        ClickCase("sitting Hoodie", () => { pet.Place(new Vec2(mid, prim.Bottom), appear: false); pet.SetMode(PresenceMode.Quiet); }, "torso",
+            r => r.Response == ClickResponse.SeatedWave);
+        ClickCase("the laptop", () => { pet.SetMode(PresenceMode.Normal); pet.SetPanelActivity(PanelActivity.Laptop); }, "laptop",
+            r => r.Response == ClickResponse.PropUse, settle: 2.2);
+        ClickCase("Hoodie at its laptop", () => pet.SetPanelActivity(PanelActivity.Laptop), "head", r => r.Response == ClickResponse.Glance, settle: 2.2);
+        ClickCase("the notebook", () => pet.SetPanelActivity(PanelActivity.Notes), "notebook",
+            r => r.Response == ClickResponse.PropUse, settle: 2.4, then: () => pet.NoteTyping());
+        ClickCase("the blanket (asleep)", () =>
+        {
+            pet.SetPanelActivity(PanelActivity.None);
+            _host.Memory.GiveItem("blanket");
+        }, "blanket|torso", r => r.Response == ClickResponse.Wake, settle: 4.0, then: () => pet.WorldSleep(true));
+        ClickCase("walking Hoodie", () =>
+        {
+            pet.WorldSleep(false);
+            pet.Place(new Vec2(prim.Left + prim.Width * 0.7, prim.Bottom), appear: false);
+        }, "torso", r => r.Response == ClickResponse.Boop, settle: 1.0,
+            then: () => pet.TravelTo(new Vec2(prim.Left + prim.Width * 0.2, prim.Bottom), false, null));
+        ClickCase("running Hoodie", () =>
+        {
+            pet.Place(new Vec2(prim.Left + prim.Width * 0.2, prim.Bottom), appear: false);
+        }, "torso", r => r.Response == ClickResponse.Boop, settle: 0.9,
+            then: () => pet.TravelTo(new Vec2(prim.Left + prim.Width * 0.8, prim.Bottom), true, null));
+        ClickCase("Hoodie on the screen side", () =>
+        {
+            pet.Place(new Vec2(prim.Left + prim.Width * 0.07, prim.Bottom), appear: false);
+        }, "torso", r => r.Response == ClickResponse.HoldWave, settle: 2.6, then: () => Check(pet.DebugClimbWall(), "starts climbing for the real click"));
+        ClickCase("the ball", () =>
+        {
+            pet.StopActivity();
+            pet.Place(new Vec2(mid, prim.Bottom), appear: false);
+        }, "ball", r => r.Response == ClickResponse.KickBall && !_host.Panel.IsOpen, settle: 2.0,
+            then: () => Check(pet.DebugIntent(HoodieCompanion.Companion.Behavior.Activity.PlayBall), "the ball game starts for the real click"));
 
+        At(132.0, "real clicks", () => RunClickCases(() => RealLandingCase(() => RealCatchCase(() => RealEmptyCase(Finish)))));
         // Steps run in time order regardless of the order they were declared in.
         var ordered = _steps.Select((st, i) => (st, i)).OrderBy(x => x.st.At).ThenBy(x => x.i).Select(x => x.st).ToList();
         _steps.Clear();
@@ -525,6 +817,15 @@ public sealed class QaRunner
             _fps.Add(_host.Clock.FramesPerSecond);
             _self.Refresh();
             _peakMem = Math.Max(_peakMem, _self.WorkingSet64);
+        }
+        for (var i = _polls.Count - 1; i >= 0; i--)
+        {
+            var (deadline, name, poll) = _polls[i];
+            bool done;
+            try { done = poll(); }
+            catch (Exception ex) { done = true; Check(false, $"poll '{name}' threw {ex.GetType().Name}: {ex.Message}"); }
+            if (done) _polls.RemoveAt(i);
+            else if (now > deadline) { _polls.RemoveAt(i); Check(false, $"{name}: timed out"); }
         }
         while (_next < _steps.Count && _steps[_next].At <= now)
         {

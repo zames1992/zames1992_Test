@@ -88,6 +88,16 @@ Honest list of what is missing, rough or unverified in this vertical slice.
   together) — it cannot be triggered or tuned from the UI.
 * Item props (fan, mug, ball, blanket) are simple vector shapes; the fan is held in the right hand only.
 
+## Clicks (v1.4)
+
+* The invisible hit halo is a 1/255-alpha fill: where several halos overlap, the desktop right next to Hoodie is
+  darkened by at most ~1 % (1–3 of 255 levels). It is not visible, but it is not mathematically zero.
+* The halo is a rounded box per body part, not the exact outline: clicks up to ~10–20 DIP from Hoodie's edge (a bit more
+  in the corners of a box) reach Hoodie instead of the desktop.
+* Wine does not do per-pixel hit testing of layered windows: under Wine the whole window box receives clicks and
+  Hoodie ignores presses on empty pixels itself (they are then lost rather than passed to the desktop). On Windows the
+  system lets them through.
+
 ## Visual
 
 * Arms are single rigid sleeves (no elbows): big arm poses (stretch, wave, fall) look slightly "noodly".

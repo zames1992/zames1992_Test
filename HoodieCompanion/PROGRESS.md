@@ -60,6 +60,12 @@
   drawn), found items are no longer shown while the user asked for calm, QA release now tied to swing progress (no
   timer flake). 83 tests; QA scenario 45/45 PASS under Wine three times in a row.
 
+- v1.4 stage 1, clickable in any animation: props hit-testable, invisible hit halo around every rig group, a defined
+  click answer for every visible state (gestures layered on the running clip), press squash on the next frame, catch
+  in the air on press, alert acknowledged by clicking Hoodie, "Come back" in the commands while Hoodie is away.
+  99 tests (16 new click tests); QA scenario 58/58 PASS under Wine, including 14 real clicks through `SendInput`
+  (sitting, laptop, notebook, blanket, walking, running, screen side, ball, landing, catch in the air, empty spot).
+
 ## FAILED (and what replaced it)
 
 - Building with the WindowsDesktop SDK on Linux: not shipped in the Ubuntu SDK → switched to a plain
@@ -68,6 +74,11 @@
   Segoe UI stand-in font in the test prefix.
 - "Leave me alone" took >14 s from mid-screen → exit speed now scales with distance (≤ ~5 s).
 - QA snapshots were stretched by a VisualBrush → render element directly.
+- v1.4 hit halo as a thick invisible stroke around every rig part (65 paths, later one merged outline per group):
+  calm CPU under Wine rose from ~8 % to 12–20 % → one filled rounded box per group (~10 %).
+- Real clicks in QA on fixed timings: under Wine injected input is only delivered with the next input event and a
+  slow QA machine made steps overlap → absolute `SendInput` with a trailing move, and click cases run one after
+  another, each waiting for the previous one.
 
 ## NEXT
 

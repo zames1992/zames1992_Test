@@ -1534,8 +1534,9 @@ public sealed class QuickPanel : Window
     private UIElement CommandsPage()
     {
         var anchored = _host.Territory.Anchor is not null;
-        var list = Ui.Stack(Orientation.Vertical, 6,
-            Ui.Caption(T("Ask Hoodie")),
+        var items = new List<UIElement> { Ui.Caption(T("Ask Hoodie")) };
+        if (_host.Pet.Mode == PresenceMode.Alone) items.Add(Wide(T("Come back"), () => _host.Command(PetCommand.ComeBack)));
+        items.AddRange(new UIElement[] {
             Wide(anchored ? T("You're free") : T("Stay here"), () => _host.Command(anchored ? PetCommand.YoureFree : PetCommand.StayHere)),
             Wide(T("Go home"), () => _host.Command(PetCommand.GoHome)),
             Wide(T("Set this as Home"), () => _host.SetHomeHere()),
@@ -1546,7 +1547,9 @@ public sealed class QuickPanel : Window
             Ui.Caption(T("More")),
             Wide(T("Territory editor…"), () => _host.ShowTerritoryEditor()),
             Wide(T("Settings…"), () => _host.ShowSettings()),
-            Wide(T("Hide Hoodie (Ctrl+Alt+H)"), () => _host.SetEmergencyHidden(true)));
+            Wide(T("Hide Hoodie (Ctrl+Alt+H)"), () => _host.SetEmergencyHidden(true)),
+        });
+        var list = Ui.Stack(Orientation.Vertical, 6, items.ToArray());
         return Frame("Hoodie", Ui.Scroll(list), back: false);
     }
 

@@ -826,23 +826,88 @@ public sealed partial class PetController
 
     // ------------------------------------------------------------------ user interaction
 
-    /// <summary>Left click on Hoodie (the host opens the Quick Panel).</summary>
-    public void Clicked()
+    /// <summary>
+    /// The mouse button went down on Hoodie: a tiny squash answers straight away, before the click is
+    /// even finished, so every touch visibly lands.
+    /// </summary>
+    public void Pressed()
     {
+        if (Machine.State is BehaviorState.Hidden or BehaviorState.Vanishing) return;
+        Animation.Press();
+    }
+
+    /// <summary>
+    /// Left click on Hoodie. Every visible state has its own answer (see <see cref="ClickResponse"/>); the
+    /// result tells the host whether the menu should open as well.
+    /// </summary>
+    public ClickResult Clicked(ClickTarget target = ClickTarget.Body)
+    {
+        var state = Machine.State;
+        if (state is BehaviorState.Hidden or BehaviorState.Vanishing) return new ClickResult(ClickResponse.None, OpenMenu: true);
+        // In the air a click is a catch (the host grabs on press); a late click never opens the menu mid-flight.
+        if (state is BehaviorState.Airborne or BehaviorState.Jumping or BehaviorState.Grabbed) return new ClickResult(ClickResponse.None, OpenMenu: false);
+
         Drives.OnUserAttention();
         Mind.OnClicked();
         Memory.Interaction("click");
-        if (Machine.State == BehaviorState.Sleeping)
+        LookAtPoint(_cursor, 1.6);
+        var response = ResponseFor(state, target);
+        LastClickResponse = response;
+        Log?.Invoke($"clicked in {state} ({target}) -> {response}");
+        switch (response)
         {
-            WakeUp(null);
-            return;
+            case ClickResponse.Wake:
+                WakeUp(null);
+                break;
+            case ClickResponse.Boop:
+                if (state == BehaviorState.Walking) StopWalk("clicked");
+                Animation.PlayGesture(Gesture.Boop);
+                break;
+            case ClickResponse.SeatedWave: Animation.PlayGesture(Gesture.SeatedWave); break;
+            case ClickResponse.Glance: Animation.PlayGesture(Gesture.Glance); break;
+            case ClickResponse.KickBall: Animation.PlayGesture(Gesture.KickBall); break;
+            case ClickResponse.PropUse: Animation.PlayGesture(Gesture.PropUse); break;
+            case ClickResponse.HoldWave: Animation.PlayGesture(Gesture.HoldWave); break;
+            case ClickResponse.ImOkay: Animation.PlayGesture(Gesture.OkayNod); break;
+            case ClickResponse.LookBackWave: Animation.PlayGesture(Gesture.LookBackWave); break;
+            case ClickResponse.AcknowledgeAlert: Animation.PlayGesture(Gesture.Boop); break;
         }
-        if (Machine.State is BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Emote && !Animation.IsOnCooldown(AnimClip.Wave))
+        var openMenu = response is not (ClickResponse.KickBall or ClickResponse.AcknowledgeAlert);
+        return new ClickResult(response, openMenu);
+    }
+
+    /// <summary>What a click means in each state (pure, so it can be tested state by state).</summary>
+    public ClickResponse ResponseFor(BehaviorState state, ClickTarget target)
+    {
+        switch (state)
         {
-            _walkTargetX = null;
-            React(PetEvent.Clicked);
+            case BehaviorState.Sleeping:
+                return ClickResponse.Wake;
+            case BehaviorState.Idle or BehaviorState.Walking or BehaviorState.Turning or BehaviorState.Emote:
+                return ClickResponse.Boop;
+            case BehaviorState.Sitting:
+                return ClickResponse.SeatedWave;
+            case BehaviorState.Activity:
+                if (target == ClickTarget.Ball && HeldItem == WorldItem.Ball) return ClickResponse.KickBall;
+                if (target == ClickTarget.Prop) return ClickResponse.PropUse;
+                return _activity is { Name: "lie" } ? ClickResponse.SeatedWave : ClickResponse.Glance;
+            case BehaviorState.ReceivingItem:
+                return ClickResponse.Glance;
+            case BehaviorState.Climbing:
+                return ClickResponse.HoldWave;
+            case BehaviorState.Landing or BehaviorState.Recovering:
+                return ClickResponse.ImOkay;
+            case BehaviorState.Alert:
+                return ClickResponse.AcknowledgeAlert;
+            case BehaviorState.Leaving or BehaviorState.Returning or BehaviorState.Appearing:
+                return ClickResponse.LookBackWave;
+            default:
+                return ClickResponse.None;
         }
     }
+
+    /// <summary>The answer to the most recent click (for tests and QA).</summary>
+    public ClickResponse LastClickResponse { get; private set; }
 
     public void SetMode(PresenceMode mode)
     {

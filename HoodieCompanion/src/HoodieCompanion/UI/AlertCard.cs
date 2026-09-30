@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Windows;
@@ -100,6 +101,16 @@ public sealed class AlertCard : Window
         Place();
         var anim = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(_host.Settings.ReducedMotion ? 120 : 200));
         _chrome.BeginAnimation(OpacityProperty, anim);
+    }
+
+    /// <summary>Runs the card's main action (Done / OK), as when Hoodie itself is clicked during an alert.</summary>
+    public void AcceptPrimary()
+    {
+        var r = _current;
+        if (r is null) return;
+        var action = r.Actions.FirstOrDefault(a => a.Primary) ?? r.Actions.LastOrDefault();
+        Finish(dismissed: action is null);
+        action?.OnClick();
     }
 
     /// <summary>Closes the current card (e.g. acknowledged elsewhere).</summary>

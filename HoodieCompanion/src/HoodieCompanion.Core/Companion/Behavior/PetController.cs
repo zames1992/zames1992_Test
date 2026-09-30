@@ -65,6 +65,36 @@ public enum PetCommand
     Company,
 }
 
+
+/// <summary>What the pointer was on when Hoodie was clicked.</summary>
+public enum ClickTarget
+{
+    Body,
+    /// <summary>The ball it is playing with.</summary>
+    Ball,
+    /// <summary>Any other thing it holds or uses (laptop, book, mug, blanket...).</summary>
+    Prop,
+}
+
+/// <summary>How Hoodie answers a click in its current state.</summary>
+public enum ClickResponse
+{
+    None,
+    Boop,
+    SeatedWave,
+    Wake,
+    Glance,
+    KickBall,
+    PropUse,
+    HoldWave,
+    ImOkay,
+    AcknowledgeAlert,
+    LookBackWave,
+}
+
+/// <summary>Result of a click: the answer and whether the host should open the menu too.</summary>
+public readonly record struct ClickResult(ClickResponse Response, bool OpenMenu);
+
 /// <summary>
 /// The companion's brain and body. Pure logic: no WPF, no Win32. The platform layer feeds
 /// <see cref="PetInput"/> every frame and draws the returned <see cref="RenderState"/>.
