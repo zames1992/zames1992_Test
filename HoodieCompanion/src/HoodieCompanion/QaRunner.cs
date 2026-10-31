@@ -46,6 +46,8 @@ public sealed class QaRunner
     private Action? _releaseMidSwing;
     private bool _swinging;
     private double _calmCpu = -1;
+    private double _lastTick = -1;
+    private double _stepOffset;
     private long _peakMem;
 
     public QaRunner(AppHost host, string outDir, bool keep)
@@ -246,7 +248,7 @@ public sealed class QaRunner
             if (w is not null)
             {
                 SnapWindow(w, "20-settings");
-                w.Expand("privacy", "debug");
+                w.Show(SettingsWindow.Privacy);
                 w.UpdateLayout();
             }
         });
@@ -256,6 +258,9 @@ public sealed class QaRunner
             if (w is not null)
             {
                 SnapWindow(w, "20b-settings-privacy");
+                w.Show(SettingsWindow.Control);
+                w.UpdateLayout();
+                SnapWindow(w, "20c-settings-control");
                 w.Close();
             }
         });
@@ -375,6 +380,17 @@ public sealed class QaRunner
             SnapPet("28-sleeping");
             pet.WorldSleep(false);
         });
+        At(97.05, "manual-on", () =>
+        {
+            _host.SetManualControl(true);
+            Check(pet.ManualControl && Application.Current.Windows.OfType<ManualControlHud>().Any(w => w.IsVisible), "manual control: Ctrl+Alt+P mode on, HUD shown");
+            SnapDesktop("23-manual-control");
+        });
+        At(97.25, "manual-off", () =>
+        {
+            _host.SetManualControl(false);
+            Check(!pet.ManualControl && !Application.Current.Windows.OfType<ManualControlHud>().Any(w => w.IsVisible), "manual control: ends cleanly, autonomy back");
+        });
         // Regression: clicks on a moving Hoodie were swallowed when a frame saw the button already up before
         // the WM_LBUTTONUP message was handled.
         At(97.3, "click-while-walking", () =>
@@ -392,25 +408,14 @@ public sealed class QaRunner
             var delivered = _host.PetWindow.QaRelease();
             Check(delivered && _host.Radial.IsOpen, "a quick click on a walking Hoodie opens the radial menu");
         });
-        At(97.8, "radial-snap", () =>
+        At(98.2, "radial-snap", () =>
         {
             SnapDesktop("22-radial-menu");
             _host.Radial.Select(PanelPage.Backpack);
             Check(!_host.Radial.IsOpen && _host.Panel.IsOpen && _host.Panel.Page == PanelPage.Backpack, "radial menu: picking an item opens that page");
             _host.Panel.Close(animated: false);
         });
-        At(97.86, "manual-on", () =>
-        {
-            _host.SetManualControl(true);
-            Check(pet.ManualControl && Application.Current.Windows.OfType<ManualControlHud>().Any(w => w.IsVisible), "manual control: Ctrl+Alt+P mode on, HUD shown");
-            SnapDesktop("23-manual-control");
-        });
-        At(97.95, "manual-off", () =>
-        {
-            _host.SetManualControl(false);
-            Check(!pet.ManualControl && !Application.Current.Windows.OfType<ManualControlHud>().Any(w => w.IsVisible), "manual control: ends cleanly, autonomy back");
-        });
-        At(98.0, "platform", () =>
+        At(98.3, "platform", () =>
         {
             pet.Place(new Vec2(groundX, prim.Bottom), appear: false);
             var s = world.Primary.Scale;
@@ -418,7 +423,7 @@ public sealed class QaRunner
             _host.SurfaceOverride = new[] { surface };
             pet.SetSurfaces(_host.SurfaceOverride);
         });
-        At(98.4, "platform-visit", () => Check(pet.DebugVisitSurface(), "finds a window top to climb onto"));
+        At(98.7, "platform-visit", () => Check(pet.DebugVisitSurface(), "finds a window top to climb onto"));
         At(105.0, "platform-check", () =>
         {
             Check(pet.StandingOn == "qa-window", $"stands on the window top ({pet.StandingOn ?? "floor"})");
@@ -543,7 +548,12 @@ public sealed class QaRunner
             _self.Refresh();
             _peakMem = Math.Max(_peakMem, _self.WorkingSet64);
         }
-        while (_next < _steps.Count && _steps[_next].At <= now)
+        // A stall of the UI thread (first window of a kind being created, a slow runner, the OS paging) must
+        // not compress the script: every step after it is pushed back by the stall, so Hoodie still gets the
+        // time between steps that the scenario assumes. Only the steps shift; the measurements are untouched.
+        if (_lastTick >= 0 && now - _lastTick > 0.5) _stepOffset += now - _lastTick - 0.05;
+        _lastTick = now;
+        while (_next < _steps.Count && _steps[_next].At + _stepOffset <= now)
         {
             var step = _steps[_next++];
             try

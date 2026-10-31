@@ -21,7 +21,7 @@ src/HoodieCompanion.Core
   Geometry/            Vec2, RectD, WorldGeometry (monitors, floors, walls, ceilings)
   Companion/Animation  Pose, AnimClip, AnimationCatalog, ProceduralAnimator, AnimationController, RigTransform
   Companion/Physics    BodyMetrics, PetPhysics, GrabController, ThrowController
-  Companion/Behavior   PetController (+Movement, Life, Presence, Activities, Climb, Mind, Surfaces), PetStateMachine,
+  Companion/Behavior   PetController (+Movement, Life, Presence, Activities, Climb, Mind, Surfaces, Perception, Manual), PetStateMachine,
                        BehaviorController, CharacterDrives, Mind, ReactionSystem, IdleDirector
   Companion/Interaction CursorInteractionService
   Presence/            TerritoryModels, TerritoryService
@@ -34,9 +34,10 @@ src/HoodieCompanion
                        StartupService, SoundService, Log
   Presence/            FullscreenService (fullscreen + foreground app rules)
   Features/            SystemMonitorService, ShortcutService, DropHandler
-  Companion/Rendering  CharacterRig (rig.json → WPF paths), EffectLayer
-  UI/                  PetWindow, QuickPanel (+pages), StickyNoteWindow, AlertCard, SettingsWindow, TerritoryEditor,
-                       WorldPropWindow, TrayIcon, Ui, PoseSheet
+  Companion/Rendering  CharacterRig (rig.json → WPF paths; "variant" parts for the boy/girl characters), EffectLayer
+  UI/                  PetWindow, QuickPanel (+pages), RadialMenu (ring of buttons around Hoodie), ManualControlHud
+                       (the only window that reads keys while the user drives), StickyNoteWindow, AlertCard,
+                       SettingsWindow (sidebar sections), TerritoryEditor, WorldPropWindow, TrayIcon, Ui, PoseSheet
   AppHost.cs           composition root, frame loop, system-event → world-event mapping
   QaRunner.cs          automated end-to-end QA scenario (--qa)
 tests/HoodieCompanion.Tests  geometry, physics, controller simulation, animation/rig validation, features, storage
@@ -172,3 +173,20 @@ as UI.
   loop never loses time together. `PerformanceWatch` samples CPU, working set, managed heap, handles, GDI and USER
   objects once a minute, logs every 10 minutes and warns on growth; a 12-hour simulated soak test checks bounds and
   memory growth.
+
+## User control layer (v1.4)
+
+```
+ Ctrl+Alt+P / Commands → Drive me ──► AppHost.SetManualControl(true)
+   ├─ PetController.SetManualControl: drop autonomous plans, no decisions while on, territory still applies
+   └─ ManualControlHud (focused tool window above Hoodie) ──► ManualInput per frame ──► PetInput.Manual
+        UpdateManual: MoveX → walk/run toward a far target (edges and territory stop it as usual)
+                      Jump → JumpTo ahead · Up → VisitSurface / ClimbWall · Down → HopDown · Sit → BeginSit/StandUp
+        HUD loses focus / Esc / idle > ManualControlAutoExitSeconds ──► SetManualControl(false) ──► ScheduleDecision
+ click on Hoodie ──► RadialMenu.Open (ring/arc chosen to fit the work area) ──hover──► Pet.LookToward(button)
+                 └─ select ──► QuickPanel.Open(page)     (Settings.RadialMenu = false → QuickPanel.Open(Home))
+```
+
+Rules: the user's control always wins (manual mode pauses every autonomous decision and contextual reaction, but a
+throw or a climb in progress finishes first); keys are never read globally — only the HUD, while focused, sees them,
+and nothing about them is stored.

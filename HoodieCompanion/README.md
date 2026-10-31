@@ -27,7 +27,8 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 | Action | What happens |
 |---|---|
 | **Move the pointer near Hoodie** | It looks at your "hand"; lingers → curious; rush at it → surprised |
-| **Left click** | Small wave + the **Quick Panel** opens beside it (click again or press Esc to close) |
+| **Left click** | Small wave + a **ring of six round buttons** opens around Hoodie (Backpack, Notes, Reminder, Timer, PC Status, Memories); hover a button and Hoodie looks at it, pick one and that page of the **Quick Panel** opens beside it. Near a screen edge the ring becomes an arc. Click again / click elsewhere / Esc closes. Settings → Control switches back to the plain panel |
+| **Ctrl + Alt + P** (or Commands → *Drive me*) | **Manual control**: a small "You're driving" pill appears above Hoodie and takes the keys — ← → / A D walk, Shift run, Space jump, ↑ / W climb onto a window top or the screen side, ↓ / S hop down, E sit, Esc done. Hoodie stops deciding for itself while you drive; your territory rules still apply. Clicking anywhere else, or no keys for a minute (adjustable), ends it. Keys are read only by that focused window — never from other apps |
 | **Right click** | Commands card: Stay here / Go home / Set Home / Show backpack / Be quiet / Let's play / Leave me alone / Territory / Settings / Hide |
 | **Drag Hoodie** | Pick it up wherever you grab it: by the hood, either hand, a foot (upside down!) or the body — each hangs differently. The held point follows your pointer, the body swings behind it. Held gently for a while it relaxes; swung hard it wriggles and gets dizzy |
 | **Swing and release** | Hoodie is thrown with your pointer's velocity, flies (also onto another monitor), lands exactly where its feet touch, dusts itself off and looks at you. Dropped below the taskbar edge, it grabs the edge and climbs back up |
@@ -35,6 +36,11 @@ If Windows SmartScreen warns (the exe is not code-signed): **More info → Run a
 | **Drop files / folders / apps / links on Hoodie or on the open Backpack page** | It notices, catches, inspects and puts the item into its **backpack** |
 | **Tray icon** | Left click: panel (or show Hoodie if hidden). Right click: full menu incl. **Hide Hoodie** and **Exit** |
 | **Ctrl + Alt + H** | Emergency hide / show, instantly |
+
+Two Hoodies live in the box: the original **boy** and a **girl** with hair out of the hood and round glasses. Pick one in
+Settings → Character; everything else (moves, things, colours, memory) is shared.
+
+![Radial menu, manual control, character choice](docs/qa/v14-control.png)
 
 ## Quick Panel
 
@@ -124,12 +130,18 @@ shared and its wardrobe. Nothing to grind, no dailies, nothing lost by being awa
 
 ## Settings
 
-Simple on the outside: size, walking speed, autonomy, default mode, grab/throw, **Reduced motion**, sounds, start with
-Windows, language. Deeper, in collapsed groups: **Territory and apps** (Home, monitor rules, drawn areas, app rules),
-**Privacy and data** (what Hoodie notices and why, what it remembers, what it never reads; switches for app learning
-and typing detection; *Forget everything Hoodie learned*), **Advanced** (cursor reactions, PC-load reactions, climbing
-windows, always on top, desktop menu) and **Performance and debug** (what Hoodie is thinking and why, its traits, its
-own CPU / RAM / handles / GDI / USER objects, current and peak).
+A sidebar of six sections, one page each:
+
+* **Character** — boy / girl with live previews, hoodie colour swatches (locked ones say when they unlock), size,
+  walking speed, autonomy, default presence mode, cursor and PC-load reactions, climbing windows.
+* **Appearance** — language, always on top, desktop right-click menu, Reduced motion, sounds.
+* **Control** — ring menu on click, grab/throw, manual control (allow, auto-exit delay, key reference, *Start driving
+  now*), hotkeys.
+* **Territory** — Home, per-monitor rules, drawn areas, app rules.
+* **Privacy** — what Hoodie notices and why, what it remembers, what it never reads; switches for app learning and
+  typing detection; *Forget everything Hoodie learned*; data folder.
+* **System** — start with Windows, data, debug (what Hoodie is thinking and why, its own CPU / RAM / handles / GDI /
+  USER objects, current and peak).
 
 ![Settings](docs/qa/settings.png)
 
@@ -162,7 +174,7 @@ Open `HoodieCompanion.sln` in Visual Studio / Rider for development; `dotnet tes
 
 * `HoodieCompanion.exe --qa <outDir> --data <tempDataDir>` — automated end-to-end scenario on the real exe
   (life, walking, grab/throw, Backpack, all panel pages, reminder, Leave me alone / Come back, Quiet, Settings,
-  Territory editor, multi-monitor travel when available). Writes snapshots and `qa-report.txt` (PASS/FAIL),
+  Territory editor, radial menu, manual control, multi-monitor travel when available). Writes snapshots and `qa-report.txt` (PASS/FAIL),
   then exits. The pointer is simulated; your real mouse is not touched.
 * `HoodieCompanion.exe --render-poses poses.png` — renders every animation clip into a contact sheet.
 * `python3 tools/render_rig.py out.svg` — renders the rig from `rig.json` without Windows.

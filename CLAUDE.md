@@ -12,7 +12,7 @@ Hoodie Companion — «живой» компаньон для рабочего �
 ## Команды (Windows, из папки `HoodieCompanion`)
 
 ```powershell
-dotnet test tests\HoodieCompanion.Tests -c Release       # юнит- и симуляционные тесты (сейчас 83, все должны проходить)
+dotnet test tests\HoodieCompanion.Tests -c Release       # юнит- и симуляционные тесты (сейчас 85, все должны проходить)
 .\build-release.bat                                      # чистая сборка + тесты + publish\win-x64\HoodieCompanion.exe + zip + копия ..\HoodieCompanion.exe в корень
 dotnet run --project src\HoodieCompanion -c Release      # запуск из исходников
 publish\win-x64\HoodieCompanion.exe --qa qa --data qadata   # автоматический QA-сценарий (~2 мин) -> qa\qa-report.txt + скриншоты
@@ -30,13 +30,14 @@ $env:HOODIE_EXPORT_CATALOG="$PWD\ANIMATION_CATALOG.md"; dotnet test tests\Hoodie
 
 - `src/HoodieCompanion.Core` (net8.0, без WPF и Win32, всё тестируется) — вся логика:
   - `Companion/Behavior`: `PetController` (partial: Movement, Life, Mind, Presence, Activities, Climb, Surfaces,
-    Perception), `PetStateMachine`, `Mind` и `Personality`, `IntentSystem`, `BehaviorController`, `IdleDirector`,
+    Perception, Manual — ручное управление), `PetStateMachine`, `Mind` и `Personality`, `IntentSystem`, `BehaviorController`, `IdleDirector`,
     `ReactionSystem`.
   - `Companion/Perception` (восприятие), `Companion/Memory` (память и прогрессия), `Companion/Animation`
     (процедурные позы и 132 клипа), `Companion/Physics`, `Presence` (территория), `Features`, `Storage`.
 - `src/HoodieCompanion` (WPF-оболочка, Win32):
   - `AppHost.cs` — связывает всё вместе, покадровый цикл (`OnFrame`) и служебный таймер раз в секунду.
-  - `UI/`: окно персонажа, `QuickPanel`, `SettingsWindow`, редактор территории, трей, стикеры.
+  - `UI/`: окно персонажа, `QuickPanel`, `RadialMenu` (кольцо кнопок вокруг Худи), `ManualControlHud` (единственное
+    окно, читающее клавиши в ручном режиме), `SettingsWindow` (сайдбар разделов), редактор территории, трей, стикеры.
   - `Platform/`: мышь, мониторы и DPI, `SurfaceScanner` (верхние края окон и иконки), `WindowEvents`
     (SetWinEventHook), `PerformanceWatch`.
   - `QaRunner.cs` — автоматический QA-сценарий.

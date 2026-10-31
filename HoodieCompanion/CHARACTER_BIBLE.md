@@ -86,5 +86,10 @@ playfulness, social interest, comfort) only vary its behavior and are never show
 * **Items** are part of Hoodie's world, not UI: a pale **mug** (left hand, stays level while the arm moves), a small
   folding **hand fan** (right hand), an orange **ball** (on the floor, lifted to show), and a knitted **blanket** in
   the accent colour over the body when it naps. They come out of the backpack and go back in.
+* **Two characters (v1.4)**: the original **boy**, and a **girl** who differs only by parts marked `"variant": "girl"`
+  in `rig.json` — a dark-brown fringe and two strands falling out of the hood (`hair` group, parented to the head) and
+  round thin-rimmed glasses with a small shine (`glasses` group, parented to the face). Everything else — silhouette,
+  proportions, colours, poses, items — is the same rig, so every clip works for both. `CharacterRig.SetCharacter`
+  shows/hides the variant parts; `tools/render_rig.py --variant girl` renders her.
 * **Hoodie colours**: charcoal (original), navy, forest, maroon, sand. Only the hoodie fabric changes (hood, torso,
   sleeves, pocket); face, shoes, strings and outline stay, so the silhouette and identity hold in every colour.

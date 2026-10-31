@@ -60,6 +60,14 @@
   drawn), found items are no longer shown while the user asked for calm, QA release now tied to swing progress (no
   timer flake). 83 tests; QA scenario 45/45 PASS under Wine three times in a row.
 
+- v1.4.0, you take the wheel: **manual control** (Ctrl+Alt+P; walk / run / jump / climb / hop down / sit from the
+  keyboard, autonomy paused, territory still wins, keys read only by Hoodie's own focused HUD, auto-exit on focus loss
+  or idle); **radial menu** — six round buttons around Hoodie on click, an arc near edges, hover label, Hoodie looks at
+  the hovered button, falls back to the side panel by setting; a **second character** (girl: hair + round glasses) as
+  rig variant parts; **settings rebuilt** as a sidebar (Character · Appearance · Control · Territory · Privacy · System)
+  with live rig previews and locked colour swatches. QA script made tolerant to UI stalls (steps shift instead of
+  compressing). 85 tests; QA scenario 47/47 PASS under Wine.
+
 ## FAILED (and what replaced it)
 
 - Building with the WindowsDesktop SDK on Linux: not shipped in the Ubuntu SDK → switched to a plain

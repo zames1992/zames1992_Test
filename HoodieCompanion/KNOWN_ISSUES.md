@@ -5,8 +5,8 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 ## Verification
 
 * **Built and tested without a physical Windows PC.** The release executable was cross-built with the .NET 8 SDK
-  and exercised end-to-end under Wine (automated QA scenario: 45/45 checks passed in v1.3.1, see
-  `docs/qa/qa-report-wine.txt`), plus 83 unit/simulation tests of the platform-independent core.
+  and exercised end-to-end under Wine (automated QA scenario: 47/47 checks passed in v1.4.0, see
+  `docs/qa/qa-report-wine.txt`), plus 85 unit/simulation tests of the platform-independent core.
   The GitHub Actions workflow `.github/workflows/hoodie-companion.yml` runs the same clean build, the unit tests,
   the automated QA scenario and a single-instance check on a real `windows-latest` machine — first run on
   Windows 10.0.26100: **16/16 QA checks PASS, single instance OK**, simulation 0.085 ms/frame, calm CPU 5.5 % of all
@@ -14,7 +14,13 @@ Honest list of what is missing, rough or unverified in this vertical slice.
 * Not verified on real hardware: per-monitor **DPI transitions between monitors with different scaling**, real
   **multi-monitor** setups (the logic is covered by simulation tests with side-by-side, stacked and negative-coordinate
   layouts), tray icon behaviour on Windows 11, drag-and-drop from Explorer/browsers onto the character,
-  `Ctrl+Alt+H` hotkey, fullscreen detection with real games/videos.
+  `Ctrl+Alt+H` / `Ctrl+Alt+P` hotkeys, fullscreen detection with real games/videos, keyboard feel of manual control
+  (the QA scenario toggles the mode and checks the HUD; the keys themselves are covered by simulation tests only).
+* **Manual control** reads keys only through its own small focused window, so it ends as soon as you click anywhere
+  else — that is by design (Hoodie must never read keys meant for other apps), but it also means you cannot drive Hoodie
+  while typing in another window.
+* **Radial menu** is a separate transparent window; on exotic shells that do not pass clicks through transparent
+  pixels, clicking Hoodie itself while the ring is open may not close it — Esc or clicking elsewhere always does.
 * Performance numbers from Wine are not representative (software rendering, no GPU): there the idle process uses
   ~4 % of all cores while calm and ~0.14 ms/frame of simulation. Expect far less on Windows; the CI QA report
   records the real numbers.

@@ -752,6 +752,8 @@ public sealed class AppHost : IDisposable
             try
             {
                 _settingsWindow ??= new SettingsWindow(this);
+                // The manual-control pill too: its first creation must not stall the moment Ctrl+Alt+P is pressed.
+                _manualHud ??= new ManualControlHud(this);
                 // Instantiate its templates and layout once while nobody is waiting for it.
                 _settingsWindow.Measure(new Size(_settingsWindow.Width, _settingsWindow.Height));
                 _settingsWindow.Arrange(new Rect(0, 0, _settingsWindow.Width, _settingsWindow.Height));
