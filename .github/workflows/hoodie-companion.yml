@@ -1,0 +1,70 @@
+name: Hoodie Companion
+
+on:
+  push:
+    paths: ["HoodieCompanion/**", ".github/workflows/hoodie-companion.yml"]
+  pull_request:
+    paths: ["HoodieCompanion/**", ".github/workflows/hoodie-companion.yml"]
+  workflow_dispatch:
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: HoodieCompanion
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Clean release build (tests + self-contained single-file publish)
+        shell: cmd
+        run: build-release.bat
+
+      - name: Automated QA on the Release executable
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'publish\win-x64\HoodieCompanion.exe'
+          $p = Start-Process -FilePath $exe -ArgumentList '--qa', (Join-Path $PWD 'qa'), '--data', (Join-Path $PWD 'qadata') -PassThru
+          if (-not $p.WaitForExit(240000)) { $p.Kill(); throw 'QA run timed out' }
+          Get-Content qa\qa-report.txt
+          if (Select-String -Path qa\qa-report.txt -Pattern 'RESULT: FAIL' -Quiet) { exit 1 }
+
+      - name: Single-instance check
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'publish\win-x64\HoodieCompanion.exe'
+          $data = Join-Path $PWD 'sidata'
+          $a = Start-Process -FilePath $exe -ArgumentList '--data', $data -PassThru
+          Start-Sleep -Seconds 8
+          $b = Start-Process -FilePath $exe -ArgumentList '--data', $data -PassThru
+          if (-not $b.WaitForExit(15000)) { throw 'second instance did not exit' }
+          $alive = -not $a.HasExited
+          $a.Kill()
+          if (-not $alive) { throw 'first instance died' }
+          "single instance OK"
+
+      - name: Pose contact sheet
+        if: always()
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'publish\win-x64\HoodieCompanion.exe'
+          $p = Start-Process -FilePath $exe -ArgumentList '--render-poses', (Join-Path $PWD 'qa\poses.png'), '--data', (Join-Path $PWD 'posedata') -PassThru
+          $p.WaitForExit(120000) | Out-Null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HoodieCompanion-win-x64
+          path: HoodieCompanion/publish/HoodieCompanion-win-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-report
+          path: |
+            HoodieCompanion/qa
+            HoodieCompanion/qadata/logs
