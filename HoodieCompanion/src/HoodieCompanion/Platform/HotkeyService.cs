@@ -1,43 +1,56 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Interop;
 
 namespace HoodieCompanion.Platform;
 
-/// <summary>Global emergency hotkey (Ctrl+Alt+H by default) to hide/show Hoodie instantly.</summary>
+/// <summary>
+/// Global hotkeys: Ctrl+Alt+H hides/shows Hoodie instantly, Ctrl+Alt+P turns manual control on and off.
+/// Only these exact combinations are registered with Windows; no other key is ever seen.
+/// </summary>
 public sealed class HotkeyService : IDisposable
 {
-    private const int Id = 0x4843; // "HC"
+    public const int HideId = 0x4843;   // "HC"
+    public const int ManualId = 0x4850; // "HP"
+
     private readonly IntPtr _hwnd;
     private readonly HwndSource? _source;
-    private readonly Action _onHotkey;
-    private bool _registered;
+    private readonly Dictionary<int, Action> _actions = new();
+    private readonly HashSet<int> _registered = new();
 
-    public HotkeyService(IntPtr hwnd, Action onHotkey)
+    public HotkeyService(IntPtr hwnd)
     {
         _hwnd = hwnd;
-        _onHotkey = onHotkey;
         _source = HwndSource.FromHwnd(hwnd);
         _source?.AddHook(Hook);
-        _registered = NativeMethods.RegisterHotKey(hwnd, Id, NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT | NativeMethods.MOD_NOREPEAT, (uint)'H');
-        if (!_registered) Log.Info("Emergency hotkey Ctrl+Alt+H is used by another app; tray Hide still works.");
     }
 
-    public bool IsRegistered => _registered;
+    /// <summary>Registers one combination; false when another app already owns it.</summary>
+    public bool Register(int id, uint modifiers, char key, Action onHotkey, string label)
+    {
+        _actions[id] = onHotkey;
+        var ok = NativeMethods.RegisterHotKey(_hwnd, id, modifiers | NativeMethods.MOD_NOREPEAT, (uint)key);
+        if (ok) _registered.Add(id);
+        else Log.Info($"Hotkey {label} is used by another app.");
+        return ok;
+    }
+
+    public bool IsRegistered(int id) => _registered.Contains(id);
 
     private IntPtr Hook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == NativeMethods.WM_HOTKEY && wParam.ToInt32() == Id)
+        if (msg == NativeMethods.WM_HOTKEY && _actions.TryGetValue(wParam.ToInt32(), out var act))
         {
             handled = true;
-            _onHotkey();
+            act();
         }
         return IntPtr.Zero;
     }
 
     public void Dispose()
     {
-        if (_registered) NativeMethods.UnregisterHotKey(_hwnd, Id);
-        _registered = false;
+        foreach (var id in _registered) NativeMethods.UnregisterHotKey(_hwnd, id);
+        _registered.Clear();
         _source?.RemoveHook(Hook);
     }
 }

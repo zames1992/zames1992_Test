@@ -11,6 +11,7 @@ public sealed class TrayIcon : IDisposable
     private readonly AppHost _host;
     private readonly WinForms.NotifyIcon _icon;
     private WinForms.ToolStripMenuItem _hideItem;
+    private WinForms.ToolStripMenuItem _driveItem = new();
     private WinForms.ToolStripMenuItem _presence;
 
     public TrayIcon(AppHost host)
@@ -74,6 +75,8 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(L.T("Timer…"), null, (_, _) => _host.OpenPanel(PanelPage.Timer));
         menu.Items.Add(L.T("PC Status…"), null, (_, _) => _host.OpenPanel(PanelPage.PcStatus));
         menu.Items.Add(new WinForms.ToolStripSeparator());
+        _driveItem = new WinForms.ToolStripMenuItem(L.T("Drive Hoodie (Ctrl+Alt+P)"), null, (_, _) => _host.SetManualControl(!_host.Pet.ManualControl));
+        menu.Items.Add(_driveItem);
         menu.Items.Add(L.T("Territory editor…"), null, (_, _) => _host.ShowTerritoryEditor());
         menu.Items.Add(L.T("Settings…"), null, (_, _) => _host.ShowSettings());
         menu.Items.Add(new WinForms.ToolStripSeparator());
@@ -98,6 +101,8 @@ public sealed class TrayIcon : IDisposable
     public void Refresh()
     {
         _hideItem.Text = _host.EmergencyHidden ? L.T("Show Hoodie") : L.T("Hide Hoodie");
+        _driveItem.Text = _host.Pet.ManualControl ? L.T("Stop driving Hoodie") : L.T("Drive Hoodie (Ctrl+Alt+P)");
+        _driveItem.Enabled = _host.Settings.ManualControlEnabled;
         foreach (var item in _presence.DropDownItems)
         {
             if (item is WinForms.ToolStripMenuItem mi && mi.Tag is PresenceMode m) mi.Checked = _host.Pet.Mode == m;

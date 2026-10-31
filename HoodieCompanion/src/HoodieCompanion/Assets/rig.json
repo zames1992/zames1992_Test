@@ -1,5 +1,5 @@
 {
- "comment": "Hoodie cutout rig. Coordinates are in reference-image pixels (docs/reference.png, 559x923). Single source of truth for the app renderer and tools/render_rig.py.",
+ "comment": "Hoodie cutout rig. Coordinates are in reference-image pixels (docs/reference.png, 559x923). Single source of truth for the app renderer and tools/render_rig.py. Parts with \"variant\" belong to one character only (\"girl\" adds hair and glasses); the default character has none.",
  "schemaVersion": 1,
  "root": [
   272,
@@ -195,6 +195,20 @@
     560
    ],
    "parent": "body"
+  },
+  "hair": {
+   "pivot": [
+    262,
+    350
+   ],
+   "parent": "head"
+  },
+  "glasses": {
+   "pivot": [
+    243,
+    252
+   ],
+   "parent": "face"
   }
  },
  "parts": [
@@ -459,6 +473,74 @@
    ],
    "fill": "#26282A",
    "stroke": "none"
+  },
+  {
+   "name": "glasses.left",
+   "group": "glasses",
+   "variant": "girl",
+   "ellipse": [
+    191,
+    239,
+    27,
+    27
+   ],
+   "fill": "none",
+   "stroke": "#2A2E35",
+   "strokeWidth": 5
+  },
+  {
+   "name": "glasses.right",
+   "group": "glasses",
+   "variant": "girl",
+   "ellipse": [
+    288,
+    241,
+    27,
+    27
+   ],
+   "fill": "none",
+   "stroke": "#2A2E35",
+   "strokeWidth": 5
+  },
+  {
+   "name": "glasses.bridge",
+   "group": "glasses",
+   "variant": "girl",
+   "path": "M 218 236 C 232 228 248 229 261 238",
+   "fill": "none",
+   "stroke": "#2A2E35",
+   "strokeWidth": 5
+  },
+  {
+   "name": "glasses.shine",
+   "group": "glasses",
+   "variant": "girl",
+   "path": "M 176 226 C 180 218 188 214 196 214 M 273 228 C 277 220 285 216 293 216",
+   "fill": "none",
+   "stroke": "#FFFFFF",
+   "strokeWidth": 3,
+   "opacity": 0.55
+  },
+  {
+   "name": "hair.bangs",
+   "group": "hair",
+   "variant": "girl",
+   "path": "M 158 216 C 162 172 200 150 244 150 C 290 150 326 172 330 216 C 318 206 304 224 292 214 C 278 202 268 224 254 216 C 240 206 228 228 214 216 C 200 204 186 226 172 216 C 166 212 161 213 158 216 Z",
+   "fill": "#3A2A24"
+  },
+  {
+   "name": "hair.strandL",
+   "group": "hair",
+   "variant": "girl",
+   "path": "M 158 222 C 148 262 146 302 150 334 C 156 340 170 338 172 328 C 168 302 170 264 176 230 Z",
+   "fill": "#3A2A24"
+  },
+  {
+   "name": "hair.strandR",
+   "group": "hair",
+   "variant": "girl",
+   "path": "M 330 222 C 340 262 342 302 338 334 C 332 340 318 338 316 328 C 320 302 318 264 312 230 Z",
+   "fill": "#3A2A24"
   },
   {
    "name": "item.card",

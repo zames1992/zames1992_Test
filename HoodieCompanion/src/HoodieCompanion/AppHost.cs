@@ -45,6 +45,8 @@ public sealed class AppHost : IDisposable
     private AlertCard _alerts = null!;
     private TrayIcon? _tray;
     private HotkeyService? _hotkey;
+    private RadialMenu _radial = null!;
+    private ManualControlHud? _manualHud;
     private SystemMonitorService? _monitor;
     private SettingsWindow? _settingsWindow;
     private TerritoryEditor? _territoryEditor;
@@ -106,7 +108,9 @@ public sealed class AppHost : IDisposable
     public SystemStatus? LatestStatus => _monitor?.Latest;
     public bool EnvironmentBusy => _environment.IsBusy;
     public IEnumerable<string> RecentProcesses => _recentProcesses.OrderBy(p => p);
-    public bool HotkeyRegistered => _hotkey?.IsRegistered ?? false;
+    public bool HotkeyRegistered => _hotkey?.IsRegistered(HotkeyService.HideId) ?? false;
+    public bool ManualHotkeyRegistered => _hotkey?.IsRegistered(HotkeyService.ManualId) ?? false;
+    public RadialMenu Radial => _radial;
     public bool EmergencyHidden { get; private set; }
     public RectD PetBoundsPx { get; private set; }
     public event Action<SystemStatus>? SystemStatusUpdated;
@@ -128,13 +132,16 @@ public sealed class AppHost : IDisposable
         L.Set(Settings.Language);
         _petWindow = new PetWindow();
         _petWindow.Rig.SetHoodieColor(Memory.Doc.HoodieColor);
+        _petWindow.Rig.SetCharacter(Settings.Character);
         _propWindow = new WorldPropWindow();
         _panel = new QuickPanel(this);
+        _radial = new RadialMenu(this);
         _alerts = new AlertCard(this);
 
         _petWindow.TryBeginGrab = cursor =>
         {
             _panel.Close(animated: false);
+            _radial.Close(animated: false);
             return Pet.BeginGrab(CursorOverride ?? cursor);
         };
         _petWindow.Released += cursor => Pet.EndGrab(CursorOverride ?? cursor);
@@ -147,7 +154,9 @@ public sealed class AppHost : IDisposable
         StickyNotes = new StickyNotes(Notes);
         StickyNotes.Sync();
 
-        _hotkey = new HotkeyService(_petWindow.Hwnd, () => SetEmergencyHidden(!EmergencyHidden));
+        _hotkey = new HotkeyService(_petWindow.Hwnd);
+        _hotkey.Register(HotkeyService.HideId, NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT, 'H', () => SetEmergencyHidden(!EmergencyHidden), "Ctrl+Alt+H");
+        _hotkey.Register(HotkeyService.ManualId, NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT, 'P', () => SetManualControl(!Pet.ManualControl), "Ctrl+Alt+P");
         try
         {
             _tray = new TrayIcon(this);
@@ -247,9 +256,12 @@ public sealed class AppHost : IDisposable
             _lastInputTick = inputTick;
             _lastCursor = cursorNow;
             var status = LatestStatus;
+            if (Pet.ManualControl && Settings.ManualControlAutoExitSeconds > 0 && Pet.ManualIdleSeconds > Settings.ManualControlAutoExitSeconds)
+                SetManualControl(false);
             var input = new PetInput
             {
                 Dt = dt,
+                Manual = Pet.ManualControl && _manualHud is not null ? _manualHud.Take() : default,
                 Env = new EnvironmentSample
                 {
                     KeyboardInput = keyboardish,
@@ -273,10 +285,13 @@ public sealed class AppHost : IDisposable
             PetBoundsPx = rs.Visible ? rs.Transform.Bounds(RigTransform.BodyLocal) : FallbackBounds();
             _propWindow.Render(rs.Visible ? rs.Prop : null, Settings.AlwaysOnTop);
             _petWindow.Render(rs, Settings.Scale, Settings.AlwaysOnTop, Settings.ReducedMotion);
-            if (_alerts.IsShowing && (_frameCount++ % 6) == 0) _alerts.Place();
+            _frameCount++;
+            if (_alerts.IsShowing && _frameCount % 6 == 0) _alerts.Place();
+            if (Pet.ManualControl && _manualHud is not null && _frameCount % 2 == 0) _manualHud.Place();
+            if (_radial.IsOpen && _frameCount % 3 == 0) _radial.Follow();
 
             var mode = !rs.Visible ? FrameRateMode.Idle
-                : rs.Calm && !_petWindow.IsDragging && !_panel.IsOpen ? FrameRateMode.Calm
+                : rs.Calm && !_petWindow.IsDragging && !_panel.IsOpen && !_radial.IsOpen && !Pet.ManualControl ? FrameRateMode.Calm
                 : FrameRateMode.Active;
             _clock.SetMode(mode);
         }
@@ -407,19 +422,60 @@ public sealed class AppHost : IDisposable
 
     private void OnPetClicked()
     {
-        if (_panel.IsOpen)
+        if (_panel.IsOpen || _radial.IsOpen)
         {
             _panel.Close(animated: true);
+            _radial.Close(animated: true);
             return;
         }
+        if (Pet.ManualControl) { SetManualControl(false); return; }
         Pet.Clicked();
-        OpenPanel(PanelPage.Home);
+        if (Settings.RadialMenu) _radial.Open();
+        else OpenPanel(PanelPage.Home);
     }
 
     public void OpenPanel(PanelPage page)
     {
         if (EmergencyHidden) SetEmergencyHidden(false);
+        _radial.Close(animated: false);
         _panel.Open(page);
+    }
+
+    // ---------------- manual control (Ctrl+Alt+P)
+
+    /// <summary>
+    /// Lets the user drive Hoodie with the keyboard. The keys are read only by Hoodie's own small HUD window
+    /// while it has focus (never from other apps); the HUD closing or losing focus ends the mode.
+    /// </summary>
+    public void SetManualControl(bool on)
+    {
+        if (Pet.ManualControl == on) return;
+        if (on)
+        {
+            if (!Settings.ManualControlEnabled) return;
+            if (EmergencyHidden) SetEmergencyHidden(false);
+            _panel.Close(animated: false);
+            _radial.Close(animated: false);
+            _manualHud ??= new ManualControlHud(this);
+            Pet.SetManualControl(true);
+            _manualHud.Open();
+        }
+        else
+        {
+            Pet.SetManualControl(false);
+            _manualHud?.CloseHud();
+        }
+        _tray?.Refresh();
+    }
+
+    /// <summary>Switches between the two Hoodies ("boy" / "girl"); saved and applied at once.</summary>
+    public void SetCharacter(string character)
+    {
+        if (character is not ("boy" or "girl") || Settings.Character == character) return;
+        Settings.Character = character;
+        _petWindow?.Rig.SetCharacter(character);
+        SaveSettings();
+        Pet.PlayEmote(AnimClip.InspectSelf);
     }
 
     public void SetMode(PresenceMode mode)
@@ -479,7 +535,9 @@ public sealed class AppHost : IDisposable
         EmergencyHidden = hidden;
         if (hidden)
         {
+            if (Pet.ManualControl) SetManualControl(false);
             _panel.Close(animated: false);
+            _radial.Close(animated: false);
             _alerts.Hide();
             _petWindow.Hide();
             _propWindow.Render(null, false);
@@ -649,7 +707,7 @@ public sealed class AppHost : IDisposable
     {
         try
         {
-            var path = Postcard.Save(moment, caption, Memory);
+            var path = Postcard.Save(moment, caption, Memory, Settings.Character);
             Log.Info("postcard saved");
             Pet.PlayEmote(AnimClip.Happy);
             if (reveal) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });

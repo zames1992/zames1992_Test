@@ -34,6 +34,9 @@ public sealed class CharacterRig : Canvas
     private readonly List<Group> _order = new();
     private readonly Dictionary<string, List<Path>> _partsByGroup = new();
     private readonly Dictionary<Path, double> _baseOpacity = new();
+    /// <summary>Parts that belong to one character only (e.g. the girl's hair and glasses).</summary>
+    private readonly Dictionary<Path, string> _variantOf = new();
+    private string _character = "boy";
 
     public CharacterRig()
     {
@@ -121,6 +124,11 @@ public sealed class CharacterRig : Canvas
                 SnapsToDevicePixels = false,
             };
             if (!IsBodyGroup(groupName)) path.IsHitTestVisible = false;
+            if (part.TryGetProperty("variant", out var variant) && variant.GetString() is { } v)
+            {
+                _variantOf[path] = v;
+                if (v != _character) { path.Visibility = Visibility.Collapsed; path.Opacity = 0; }
+            }
             if (fill is "#34363E" or "#262930" or "#25282E" && groupName is "head" or "torso" or "armL" or "armR") _baseFill[path] = fill!;
             _baseOpacity[path] = opacity;
             if (!_partsByGroup.TryGetValue(groupName, out var list)) _partsByGroup[groupName] = list = new List<Path>();
@@ -140,6 +148,21 @@ public sealed class CharacterRig : Canvas
         ["maroon"] = new() { ["#34363E"] = "#56323A", ["#262930"] = "#40252B", ["#25282E"] = "#3A2227" },
         ["sand"] = new() { ["#34363E"] = "#A08C6E", ["#262930"] = "#7E6C52", ["#25282E"] = "#766548" },
     };
+
+    /// <summary>Which character this rig shows: "boy" (the original) or "girl" (hair and glasses added).</summary>
+    public string Character => _character;
+
+    /// <summary>Switches the character. The rig is the same: only the parts marked for a variant appear or vanish.</summary>
+    public void SetCharacter(string character)
+    {
+        _character = character;
+        foreach (var (path, v) in _variantOf)
+        {
+            var on = v == character;
+            path.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            path.Opacity = on ? _baseOpacity[path] : 0;
+        }
+    }
 
     /// <summary>Recolours the hoodie (hood, body, sleeves, hem). Everything else stays: the character is the same.</summary>
     public void SetHoodieColor(string color)
@@ -240,6 +263,7 @@ public sealed class CharacterRig : Canvas
         if (!_partsByGroup.TryGetValue(group, out var parts)) return;
         foreach (var path in parts)
         {
+            if (_variantOf.TryGetValue(path, out var v) && v != _character) continue;
             var o = _baseOpacity[path] * alpha;
             if (Math.Abs(path.Opacity - o) > 0.001) path.Opacity = o;
             var vis = o > 0.005 ? Visibility.Visible : Visibility.Hidden;

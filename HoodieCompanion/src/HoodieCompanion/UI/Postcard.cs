@@ -25,9 +25,9 @@ public static class Postcard
         System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Hoodie");
 
     /// <summary>Renders the postcard and returns the saved file path.</summary>
-    public static string Save(MomentMemory moment, string caption, CompanionMemory memory)
+    public static string Save(MomentMemory moment, string caption, CompanionMemory memory, string character = "boy")
     {
-        var card = Build(moment, caption, memory);
+        var card = Build(moment, caption, memory, character);
         var stem = System.IO.Path.Combine(Folder, $"hoodie-{DateTime.Now:yyyyMMdd-HHmmss}");
         var path = stem + ".png";
         for (var n = 2; File.Exists(path); n++) path = $"{stem}-{n}.png";
@@ -35,7 +35,7 @@ public static class Postcard
         return path;
     }
 
-    public static FrameworkElement Build(MomentMemory moment, string caption, CompanionMemory memory)
+    public static FrameworkElement Build(MomentMemory moment, string caption, CompanionMemory memory, string character = "boy")
     {
         var root = new Canvas
         {
@@ -56,6 +56,7 @@ public static class Postcard
         var pose = ProceduralAnimator.Evaluate(clip, t, ctx).Pose;
         var rig = new CharacterRig();
         rig.SetHoodieColor(memory.Doc.HoodieColor);
+        rig.SetCharacter(character);
         rig.Apply(pose);
         const double scale = 0.62;
         var m = Matrix.Identity;

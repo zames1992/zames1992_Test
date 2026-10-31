@@ -561,7 +561,7 @@ public sealed class QuickPanel : Window
         _ => "",
     };
 
-    private static string HoodieColorName(string c) => c switch
+    public static string HoodieColorName(string c) => c switch
     {
         "navy" => T("Navy"),
         "forest" => T("Forest"),
@@ -570,7 +570,7 @@ public sealed class QuickPanel : Window
         _ => T("Charcoal"),
     };
 
-    private static Color SwatchColor(string c) => c switch
+    public static Color SwatchColor(string c) => c switch
     {
         "navy" => Color.FromRgb(0x2A, 0x3A, 0x5E),
         "forest" => Color.FromRgb(0x2F, 0x4A, 0x36),
@@ -1544,6 +1544,7 @@ public sealed class QuickPanel : Window
             Wide(T("Let's play"), () => _host.SetMode(PresenceMode.Play)),
             Wide(T("Leave me alone"), () => _host.SetMode(PresenceMode.Alone)),
             Ui.Caption(T("More")),
+            Wide(T("Drive me (Ctrl+Alt+P)"), () => _host.SetManualControl(true)),
             Wide(T("Territory editor…"), () => _host.ShowTerritoryEditor()),
             Wide(T("Settings…"), () => _host.ShowSettings()),
             Wide(T("Hide Hoodie (Ctrl+Alt+H)"), () => _host.SetEmergencyHidden(true)));

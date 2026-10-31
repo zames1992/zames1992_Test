@@ -6,6 +6,7 @@ Used to validate the cutout rig against docs/reference.png without Windows.
   python3 tools/render_rig.py out.svg                 # neutral pose
   python3 tools/render_rig.py out.svg pose.json       # pose: {"group": {"rot": deg, "dx": px, "dy": px, "sx": 1, "sy": 1}}
   python3 tools/render_rig.py out.svg --hidden item   # hide groups
+  python3 tools/render_rig.py out.svg --variant girl  # the second character
 """
 import json
 import os
@@ -28,7 +29,7 @@ def group_transform(rig, pose, name):
     return (group_transform(rig, pose, parent) + " " + own) if parent else own
 
 
-def render(rig, pose, hidden, flip=False):
+def render(rig, pose, hidden, flip=False, variant=None):
     x0, y0, x1, y1 = 0, 0, 559, 895
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{x1}" height="{y1}" viewBox="{x0} {y0} {x1} {y1}">']
     if flip:
@@ -36,6 +37,8 @@ def render(rig, pose, hidden, flip=False):
     for part in rig["parts"]:
         grp = part["group"]
         if grp in hidden or grp.split(".")[0] in hidden:
+            continue
+        if part.get("variant") not in (None, variant):
             continue
         stroke = part.get("stroke", rig["outline"])
         sw = part.get("strokeWidth", rig["outlineWidth"])
@@ -66,10 +69,15 @@ def main():
     if "--flip" in args:
         args.remove("--flip")
         flip = True
+    variant = None
+    if "--variant" in args:
+        i = args.index("--variant")
+        variant = args[i + 1]
+        del args[i:i + 2]
     out = args[0]
     pose = json.load(open(args[1])) if len(args) > 1 else {}
     rig = json.load(open(RIG))
-    open(out, "w").write(render(rig, pose, hidden, flip))
+    open(out, "w").write(render(rig, pose, hidden, flip, variant))
 
 
 if __name__ == "__main__":

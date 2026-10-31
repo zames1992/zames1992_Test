@@ -26,6 +26,8 @@ public sealed partial class PetController
     {
         var tier = RunningTier;
         var rule = ReactionSystem.RuleFor(e);
+        // While the user drives Hoodie, only physical reactions (grab, landing) happen: no surprises.
+        if (_manual && rule.Priority >= ReactionPriority.Contextual) return false;
         if (!ReactionSystem.MayInterrupt(rule.Priority, tier)) return false;
         // Resting Hoodie only gets up for things that concern the user directly.
         if (Machine.State is BehaviorState.Sitting or BehaviorState.Sleeping && rule.Priority >= ReactionPriority.Contextual && e != PetEvent.UserReturned)

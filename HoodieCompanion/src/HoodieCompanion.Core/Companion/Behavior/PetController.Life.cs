@@ -65,7 +65,7 @@ public sealed partial class PetController
         if (_time < _nextDecisionAt)
         {
             // Between decisions the idle director keeps the body alive with small, varied moments.
-            if (Machine.TimeInState > 0.8 && IdleDirector.Tick(_time, IdlePosture.Standing, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear, Perception.UserBusy) is AnimClip micro)
+            if (!_manual && Machine.TimeInState > 0.8 && IdleDirector.Tick(_time, IdlePosture.Standing, Mind, EffectiveMode, Settings.ReducedMotion, CursorNear, Perception.UserBusy) is AnimClip micro)
                 PlayEmoteAt(micro, null, ReactionPriority.Idle);
             return;
         }
@@ -368,7 +368,7 @@ public sealed partial class PetController
             }
         }
 
-        if (_time < _sitUntil) return;
+        if (_time < _sitUntil || _manual) return;
         if (_sleepAfterSit || Drives.Energy < 0.2)
         {
             BeginSleep();

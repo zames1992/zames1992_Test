@@ -29,6 +29,7 @@ public sealed class LivingCharacterTests : IDisposable
         public Vec2 Cursor = new(200, 200);
         public double Idle;
         public EnvironmentSample Env;
+        public ManualInput Keys;
         public RenderState Last;
         public readonly List<string> Log = new();
 
@@ -52,7 +53,8 @@ public sealed class LivingCharacterTests : IDisposable
                 var env = Env;
                 env.KeyboardInput = typing && i % 6 == 0;
                 if (typing) Idle = 0;
-                Last = Pet.Update(new PetInput { Dt = 1 / 60.0, Cursor = Cursor, UserIdleSeconds = Idle, Env = env, LocalHour = 14 });
+                Last = Pet.Update(new PetInput { Dt = 1 / 60.0, Cursor = Cursor, UserIdleSeconds = Idle, Env = env, LocalHour = 14, Manual = Keys });
+                Keys.Jump = false; Keys.Up = false; Keys.Down = false; Keys.Sit = false; // edges last one frame
                 foreach (var v in Last.Pose.ToArray()) Assert.True(double.IsFinite(v), "pose value not finite");
                 each?.Invoke(Last);
             }
@@ -415,6 +417,113 @@ public sealed class LivingCharacterTests : IDisposable
         var shown = false;
         sim.Run(40, r => shown |= r.Clip == AnimClip.ShowItem);
         Assert.True(shown);
+    }
+
+    // ------------------------------------------------------------------ manual control
+
+    [Fact]
+    public void ManualControl_UserDrives_HoodieObeys_AndAutonomyPauses()
+    {
+        var sim = new Sim(TestWorlds.Single(), seed: 18);
+        sim.Pet.Place(new Vec2(900, 1040), appear: false);
+        sim.Run(0.5);
+        sim.Pet.SetManualControl(true);
+        Assert.True(sim.Pet.ManualControl);
+
+        // Nothing pressed: Hoodie stands still and makes no decisions of its own.
+        var moved = false;
+        var decisions = 0;
+        sim.Pet.Log += m => { if (m.StartsWith("intent ")) decisions++; };
+        sim.Run(20, _ => moved |= Math.Abs(sim.Pet.Feet.X - 900) > 2);
+        Assert.False(moved, $"moved on its own to {sim.Pet.Feet}");
+        Assert.Equal(0, decisions);
+
+        // Right: walks right (turning first if needed) and keeps going while the key is held.
+        sim.Keys.MoveX = 1;
+        sim.Run(4);
+        Assert.True(sim.Pet.Feet.X > 1000, $"did not walk right: {sim.Pet.Feet}");
+        Assert.Equal(1, sim.Pet.Facing);
+        var x1 = sim.Pet.Feet.X;
+        // Release: stops promptly.
+        sim.Keys.MoveX = 0;
+        sim.Run(1.5);
+        Assert.Equal(BehaviorState.Idle, sim.Pet.State);
+        Assert.InRange(sim.Pet.Feet.X, x1 - 10, x1 + 40);
+        var x2 = sim.Pet.Feet.X;
+        sim.Run(5);
+        Assert.Equal(x2, sim.Pet.Feet.X, 1);
+
+        // Left, running: faster.
+        sim.Keys.MoveX = -1;
+        sim.Keys.Run = true;
+        sim.Run(3);
+        Assert.True(sim.Pet.Feet.X < x2 - 300, $"did not run left: {sim.Pet.Feet}");
+        sim.Keys.MoveX = 0;
+        sim.Keys.Run = false;
+        sim.Run(1.5);
+
+        // Jump: leaves the floor and lands back on it.
+        var airborne = false;
+        sim.Keys.Jump = true;
+        sim.Run(3, r => airborne |= r.State == BehaviorState.Airborne);
+        Assert.True(airborne, "jump did not leave the floor");
+        Assert.Equal(1040, sim.Pet.Feet.Y, 1);
+
+        // Sit, then sit again to stand; stays seated meanwhile (no autonomous stand-up).
+        sim.Keys.Sit = true;
+        sim.Run(2);
+        Assert.Equal(BehaviorState.Sitting, sim.Pet.State);
+        sim.Run(25);
+        Assert.Equal(BehaviorState.Sitting, sim.Pet.State);
+        sim.Keys.Sit = true;
+        sim.Run(2);
+        Assert.Equal(BehaviorState.Idle, sim.Pet.State);
+
+        // Walking right into the screen edge stops at the edge (never leaves the world).
+        sim.Keys.MoveX = 1;
+        sim.Run(25);
+        Assert.True(sim.Pet.Feet.X < 1920 && sim.Pet.Feet.X > 1700, $"edge handling: {sim.Pet.Feet}");
+        sim.Keys.MoveX = 0;
+
+        // Off: autonomy resumes within a few seconds.
+        sim.Pet.SetManualControl(false);
+        decisions = 0;
+        sim.Run(15);
+        Assert.True(decisions > 0, "autonomy did not resume");
+    }
+
+    [Fact]
+    public void ManualControl_TerritoryStillWins_AndUpClimbsAPlatform()
+    {
+        var data = new TerritoryData();
+        var world = TestWorlds.Single();
+        var territory = new TerritoryService(data, world);
+        var pet = new PetController(world, territory, new AppSettings(), new Random(19));
+        pet.Place(new Vec2(600, 1040), appear: false);
+        // A no-go area to the right of x = 900.
+        data.Regions.Add(new TerritoryRegion { MonitorId = "A", Type = RegionType.NoGo, RelX = 900.0 / 1920, RelY = 0, RelW = 1 - 900.0 / 1920, RelH = 1 });
+        territory.NotifyChanged();
+        pet.SetManualControl(true);
+        void Run(double s, ManualInput k)
+        {
+            for (var i = 0; i < s * 60; i++)
+            {
+                pet.Update(new PetInput { Dt = 1 / 60.0, Cursor = new Vec2(100, 100), UserIdleSeconds = 1, LocalHour = 14, Manual = k });
+                k.Jump = false; k.Up = false; k.Down = false; k.Sit = false;
+            }
+        }
+        Run(1, default);
+        Run(12, new ManualInput { MoveX = 1 });
+        Assert.True(pet.Feet.X < 900, $"walked into a no-go area: {pet.Feet}");
+
+        // Up next to a window top: climbs onto it; Down hops off.
+        pet.SetSurfaces(new[] { new Surface("w1", SurfaceKind.Window, 300, 900, 900) });
+        Run(0.5, default);
+        Run(8, new ManualInput { Up = true });
+        Assert.Equal("w1", pet.StandingOn);
+        Run(4, new ManualInput { Down = true });
+        Assert.Null(pet.StandingOn);
+        Assert.Equal(1040, pet.Feet.Y, 1);
     }
 
     // ------------------------------------------------------------------ long runs

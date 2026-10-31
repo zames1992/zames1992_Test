@@ -390,8 +390,25 @@ public sealed class QaRunner
         At(97.75, "click-release", () =>
         {
             var delivered = _host.PetWindow.QaRelease();
-            Check(delivered && _host.Panel.IsOpen, "a quick click on a walking Hoodie opens the panel");
+            Check(delivered && _host.Radial.IsOpen, "a quick click on a walking Hoodie opens the radial menu");
+        });
+        At(97.8, "radial-snap", () =>
+        {
+            SnapDesktop("22-radial-menu");
+            _host.Radial.Select(PanelPage.Backpack);
+            Check(!_host.Radial.IsOpen && _host.Panel.IsOpen && _host.Panel.Page == PanelPage.Backpack, "radial menu: picking an item opens that page");
             _host.Panel.Close(animated: false);
+        });
+        At(97.86, "manual-on", () =>
+        {
+            _host.SetManualControl(true);
+            Check(pet.ManualControl && Application.Current.Windows.OfType<ManualControlHud>().Any(w => w.IsVisible), "manual control: Ctrl+Alt+P mode on, HUD shown");
+            SnapDesktop("23-manual-control");
+        });
+        At(97.95, "manual-off", () =>
+        {
+            _host.SetManualControl(false);
+            Check(!pet.ManualControl && !Application.Current.Windows.OfType<ManualControlHud>().Any(w => w.IsVisible), "manual control: ends cleanly, autonomy back");
         });
         At(98.0, "platform", () =>
         {

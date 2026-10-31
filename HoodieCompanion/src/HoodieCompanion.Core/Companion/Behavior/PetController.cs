@@ -27,6 +27,8 @@ public struct PetInput
     public int? LocalHour;
     /// <summary>What the platform perceives about the PC (foreground app, load, typing...).</summary>
     public EnvironmentSample Env;
+    /// <summary>Keys the user is pressing while driving Hoodie (only read while manual control is on).</summary>
+    public ManualInput Manual;
 }
 
 /// <summary>What the renderer needs to draw one frame.</summary>
@@ -235,6 +237,7 @@ public sealed partial class PetController
         UpdateSurface();
 
         PumpPendingActivity();
+        if (_manual) UpdateManual(input.Manual, dt);
         switch (Machine.State)
         {
             case BehaviorState.Idle: UpdateIdle(); break;

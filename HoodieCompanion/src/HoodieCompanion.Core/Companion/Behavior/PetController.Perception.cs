@@ -159,6 +159,18 @@ public sealed partial class PetController
         if (Machine.State == BehaviorState.Idle) ScheduleDecision(Math.Min(_nextDecisionAt - _time, 2 + _rng.NextDouble() * 3));
     }
 
+    /// <summary>
+    /// The UI asks Hoodie to glance at a point on screen (e.g. the radial-menu button under the cursor).
+    /// Eyes and head only: Hoodie never turns or walks for this.
+    /// </summary>
+    public void LookToward(Vec2 world, double seconds = 1.5)
+    {
+        if (Machine.State is not (BehaviorState.Idle or BehaviorState.Sitting or BehaviorState.Emote or BehaviorState.Activity)) return;
+        var dir = (world - HeadWorld).Normalized();
+        _lookAt = (-Facing * dir.X, dir.Y);
+        _lookAtUntil = _time + seconds;
+    }
+
     private void LookAtPoint(Vec2 world, double seconds)
     {
         var head = HeadWorld;
@@ -180,7 +192,7 @@ public sealed partial class PetController
     /// </summary>
     private void KeepOutOfTheWay()
     {
-        if (!Perception.Typing || _time < _nextOutOfWay || Machine.State is not (BehaviorState.Idle or BehaviorState.Sitting)) return;
+        if (_manual || !Perception.Typing || _time < _nextOutOfWay || Machine.State is not (BehaviorState.Idle or BehaviorState.Sitting)) return;
         if (!Settings.AutonomousBehavior || Territory.Anchor is not null) return;
         _nextOutOfWay = _time + 20;
         var m = Metrics;

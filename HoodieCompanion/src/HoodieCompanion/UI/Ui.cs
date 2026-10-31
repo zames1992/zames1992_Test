@@ -173,6 +173,14 @@ public static class Ui
         public const string More = "M 5 12 L 5.01 12 M 12 12 L 12.01 12 M 19 12 L 19.01 12";
         public const string Down = "M 12 4 L 12 20 M 6 14 L 12 20 L 18 14";
         public const string Up = "M 12 20 L 12 4 M 6 10 L 12 4 L 18 10";
+        public const string Gamepad = "M 6 8 L 18 8 C 20.5 8 22 10 22 12.5 L 21.5 17 C 21.3 18.7 19.3 19.4 18.2 18.1 L 16.2 15.7 L 7.8 15.7 L 5.8 18.1 C 4.7 19.4 2.7 18.7 2.5 17 L 2 12.5 C 2 10 3.5 8 6 8 Z M 7 11 L 7 14 M 5.5 12.5 L 8.5 12.5 M 16 11.5 L 16.01 11.5 M 18 13.5 L 18.01 13.5";
+        public const string Palette = "M 12 3 C 7 3 3 7 3 12 C 3 17 7 21 12 21 C 13.5 21 14.5 20 14 18.5 C 13.5 17 14.5 16 16 16 L 17.5 16 C 19.5 16 21 14.5 21 12.5 C 21 7 17 3 12 3 Z M 7.5 12 L 7.51 12 M 10 8 L 10.01 8 M 15 8 L 15.01 8";
+        public const string Shield = "M 12 3 L 20 6 L 20 12 C 20 16.5 16.5 20 12 21.5 C 7.5 20 4 16.5 4 12 L 4 6 Z M 9 12 L 11.5 14.5 L 15.5 9.5";
+        public const string Map = "M 3 6 L 9 4 L 15 6 L 21 4 L 21 18 L 15 20 L 9 18 L 3 20 Z M 9 4 L 9 18 M 15 6 L 15 20";
+        public const string User = "M 12 12 C 14.5 12 16.5 10 16.5 7.5 C 16.5 5 14.5 3 12 3 C 9.5 3 7.5 5 7.5 7.5 C 7.5 10 9.5 12 12 12 Z M 4 21 C 4 17 7.5 14.5 12 14.5 C 16.5 14.5 20 17 20 21";
+        public const string Sliders = "M 4 7 L 20 7 M 4 12 L 20 12 M 4 17 L 20 17 M 9 5 L 9 9 M 15 10 L 15 14 M 7 15 L 7 19";
+        public const string Lock = "M 6 11 L 18 11 L 18 21 L 6 21 Z M 8.5 11 L 8.5 7.5 C 8.5 5.5 10 4 12 4 C 14 4 15.5 5.5 15.5 7.5 L 15.5 11 M 12 15 L 12 17.5";
+        public const string Monitor = "M 3 4 L 21 4 L 21 16 L 3 16 Z M 8 20 L 16 20 M 12 16 L 12 20";
         public const string Hand = "M 8 13 L 8 5 C 8 3.5 10 3.5 10 5 L 10 11 M 10 10 L 10 3.5 C 10 2 12 2 12 3.5 L 12 10 M 12 10 L 12 4.5 C 12 3 14 3 14 4.5 L 14 11 M 14 11 L 14 7 C 14 5.5 16 5.5 16 7 L 16 15 C 16 19 13 21 11 21 C 8 21 6 19 5 16 L 4 13 C 3.5 11.5 5.5 11 6.5 12.5 L 8 14";
     }
 

@@ -61,6 +61,18 @@ public sealed class AppSettings
 
     /// <summary>Hoodie may notice typing (only that keys are pressed, never which) to stay out of the way.</summary>
     public bool NoticeTyping { get; set; } = true;
+
+    // CHARACTER
+    /// <summary>Which Hoodie lives here: "boy" (the original) or "girl".</summary>
+    public string Character { get; set; } = "boy";
+
+    // CONTROL
+    /// <summary>Clicking Hoodie opens a ring of round buttons around it instead of the side panel.</summary>
+    public bool RadialMenu { get; set; } = true;
+    /// <summary>Manual control (Ctrl+Alt+P): drive Hoodie with the keyboard.</summary>
+    public bool ManualControlEnabled { get; set; } = true;
+    /// <summary>Seconds without a key before manual control ends by itself (0 = never).</summary>
+    public int ManualControlAutoExitSeconds { get; set; } = 60;
     public bool FirstRunDone { get; set; }
 
     public SavedPosition? LastPosition { get; set; }
@@ -72,5 +84,7 @@ public sealed class AppSettings
         if (!Enum.IsDefined(DefaultPresenceMode)) DefaultPresenceMode = PresenceMode.Normal;
         if (!Enum.IsDefined(CurrentPresenceMode)) CurrentPresenceMode = PresenceMode.Normal;
         if (Language is not ("auto" or "en" or "ru")) Language = "auto";
+        if (Character is not ("boy" or "girl")) Character = "boy";
+        ManualControlAutoExitSeconds = Math.Clamp(ManualControlAutoExitSeconds, 0, 600);
     }
 }
